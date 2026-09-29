@@ -129,6 +129,7 @@ function refusalLabel(reason: RefusalReason): string {
     case 'kind-locked':
     case 'missing-goal':
     case 'missing-work':
+    case 'missing-block':
     case 'commute-without-work':
     case 'invalid-backup':
     case 'storage-unavailable':
@@ -137,11 +138,13 @@ function refusalLabel(reason: RefusalReason): string {
 }
 
 describe('RefusalReason', () => {
-  it('is the closed set the plan lists, plus the one reason work needed', () => {
-    // The plan says "at least", and one more reason earned its place. A work
-    // interval that is not on the day being changed has no honest sentence
-    // among the rest of them: calling it a missing goal would be nonsense, and
-    // calling it an overlap would be a lie.
+  it('is the closed set the plan lists, plus the two reasons a block needed', () => {
+    // The plan says "at least", and two more reasons earned their place. A work
+    // interval that is not on the day being changed, and a placed block that is
+    // not on the board at all, have no honest sentence among the rest of them:
+    // calling either a missing goal would be nonsense, and calling either an
+    // overlap would be a lie. A stale grid drop is a real event, since the grid
+    // is where block ids come from.
     const reasons: RefusalReason[] = [
       'outside-day',
       'overlaps',
@@ -153,6 +156,7 @@ describe('RefusalReason', () => {
       'kind-locked',
       'missing-goal',
       'missing-work',
+      'missing-block',
       'commute-without-work',
       'invalid-backup',
       'storage-unavailable',

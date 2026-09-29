@@ -152,6 +152,7 @@ export type RefusalReason =
   | 'kind-locked'
   | 'missing-goal'
   | 'missing-work'
+  | 'missing-block'
   | 'commute-without-work'
   | 'invalid-backup'
   | 'storage-unavailable'

@@ -243,7 +243,7 @@ export type Result<T> =
   | { ok: false; reason: RefusalReason };
 ```
 
-`RefusalReason` is a closed union. At least: `outside-day`, `overlaps`, `too-short`, `not-a-step`, `empty-name`, `name-too-long`, `invalid-quota`, `kind-locked`, `missing-goal`, `commute-without-work`, `invalid-backup`, `storage-unavailable`. Task 8 added `missing-work`, for a work interval that is not on the day being changed. Wording lives in `refusalMessage(reason): string`, which tests cover. Components render that string. They do not build it.
+`RefusalReason` is a closed union. At least: `outside-day`, `overlaps`, `too-short`, `not-a-step`, `empty-name`, `name-too-long`, `invalid-quota`, `kind-locked`, `missing-goal`, `commute-without-work`, `invalid-backup`, `storage-unavailable`. Task 8 added `missing-work`, for a work interval that is not on the day being changed. Task 10 added `missing-block`, for a session or one-off that is not on the board at all. Wording lives in `refusalMessage(reason): string`, which tests cover. Components render that string. They do not build it.
 
 A session footprint is travel-before, then activity, then travel-after. Commute is not stored as a range. Morning commute ends at the first work start. Evening commute starts at the last work end. Moving that start or end moves the commute. A day with no work intervals cannot have a commute. Commute does not attach to middle fragments.
 
@@ -441,11 +441,39 @@ One rule was lifted rather than copied. A commute and a task's default travel ar
 
 Twenty-five wrong implementations were probed against the real file and all twenty-five were caught, three of them only after they exposed a gap the tests had to close first: a name trimmed on the way in, a travel comparison that looked at the before side only, and a length limit measured after a trim. The order the four fields are reported in is pinned too, because a form can be wrong several ways at once and only one sentence is shown.
 
-### 10. Session and one-off mutations
+### 10. Session and one-off mutations [done]
 
 Implement place, move, resize, set travel, set done, and delete. Place copies the goal's default length and travel and sets `travelFollowsDefault` to true. Move of a done session keeps it done and leaves no block on the old day. A second session of the same goal on the same day is allowed. Resize of a done session changes the activity minutes that progress will later sum. Delete of a done session removes it. One-offs have no quota and no `travelFollowsDefault` flag.
 
 Done when tests cover those cases, including a move from Monday to Friday and a refusal that returns the original board.
+
+Done in `src/domain/sessions.ts` and `src/domain/sessions.test.ts` (69 tests). Twelve exports, six per kind, and the two kinds are told apart in exactly one private function (`isSession`, on whether the block has a `goalId`) so a rule such as the minimum activity length cannot come to mean two things. All the fit-checking doors go through one private `put`, which is `work.ts`'s `commit` again: build the block that would result, hand its footprint to `checkFootprintFits` excluding itself by id, and only then make a board.
+
+The signature decisions, since every later task calls them:
+
+- `placeSession(board, goalId, day, startMinute, createId)` asks the minute first, then the task, and refuses `missing-goal` for a task that is not on the board. The order is the one `work.ts` uses — a minute is a property of the request, and a sentence about it is useful whether or not the rest of the request makes sense. The task is asked next because without one there is no length and no travel to place.
+- `moveSession(board, id, day, startMinute)` takes the day as an argument, which is the whole difference from `moveWorkInterval`. **A placed block changes days and a work interval does not**, and the header says why: which days carry work is the day editor's question, whereas the product scope is explicit that moving a block from Monday to Friday moves it and leaves no copy, ghost, or missed mark. Nothing is re-checked against the day the block is leaving; that day simply loses it.
+- `resizeSession(board, id, edge, minute)` takes **one end of the activity**, not of the block. This is forced by the plan's own `GridBlockView`: travel is drawn as its own strip with its own `topPercent`, so the rectangle a finger lands on is the activity, and the minute a drag reports is that rectangle's edge. The travel keeps its lengths and stays attached to the outside, so the activity is what grows or shrinks and `activityMinutes` is the number progress will later sum — which is what the done-when for this task asks for. The editor's fields are the block's first minute (a move) and the activity length, both of which are minutes the caller already has, so no component or orchestrator has to turn a length into an end position.
+- `setSessionTravel(board, id, travel)` is the only mutation that clears `travelFollowsDefault`, including when the person types the same numbers back: they edited it, so it no longer follows the task default. A move, a resize, and a done mark all leave the flag true. Clearing the travel to nothing clears the flag too, which the product scope's "including clearing them" needs.
+- `setSessionDone(board, id, done)` re-checks nothing, because no minute moved. A test marks a block done on a board where the block is already overlapping work, and gets `ok`: the mark is the person saying they did the thing, not something the geometry gets to argue with.
+
+Decisions recorded in the module header and pinned by tests:
+
+- **A resize must be asked about the length before the fit.** A start edge dragged past the activity's own end produces a negative `activityMinutes` and a footprint that `footprintRange` folds into a legal-looking sliver sitting exactly where the travel was, so the fit check alone would *allow* it. `checkActivityMinutes` is asked first, on the number the resize would leave, and the test says so in its name.
+- **The exclusion is by block id and never by task.** A block is not in its own way, but a second visit of the same task on the same day is a different block and stays in the way. A probe that excluded by `goalId` fails seventeen tests.
+- **The list keeps placement order and is never sorted.** A backup text reads in the order the person made it, and the grid's order comes from `dayOccupancy` rather than from the array. A probe that sorted by day after a move was caught only after a test was written for it: the first version of that test moved a block to a day that sorted the same way round, so it proved nothing.
+- **A refused change before the door mints no id; one inside it does.** An unknown task, a minute off the step, or an empty draft name never reach `createId`, and a test asserts the counter is still at zero. A change refused for not fitting has already been given one, because the fit check needs the candidate's id to name the block it is checking — the same split `work.ts` recorded for `addWorkInterval`.
+- **Deleting a block takes its credit with it**, and deleting one block asks nothing. A confirm is a dialog, so it belongs to the orchestrator; the product scope makes a whole task or the whole board the thing that confirms.
+
+Two things were lifted rather than copied, following the `checkTravelMinutes` precedent from task 9:
+
+- `checkMinute` now lives in `schedule.ts` and is asked by both `work.ts` and `sessions.ts`. It is the same rule about *when* something is, and one module accepting 1:37 while the other refused it would be exactly the drift that only shows up on a phone. `work.ts` lost its private copy and the reasoning moved with the function; task 8's pinned ordering tests pass unchanged.
+- `checkName` and `checkActivityMinutes` are now exported from `goals.ts`, where the rules were first written, because a one-off has a name and an activity length too. `MAX_NAME_LENGTH` is the length of a label the grid can show rather than a rule about tasks, so a dentist appointment may not be 60 characters while a task may not be 41.
+
+One member was added to the vocabulary this task needed, an addition to the "at least" list rather than a departure from it. `RefusalReason` gained **`missing-block`**: a session or one-off that is not on the board has no honest sentence among the existing thirteen (`missing-goal` is nonsense for a one-off, which has no goal at all, and `overlaps` would be a lie), and a stale id is a real event because the grid is where block ids come from — a person can start a drag, be refused, and drag again from a board that has since changed. `types.test.ts` was updated so the closed set still cannot grow quietly.
+
+**One reason the new tests had to be written before the probes all passed, which is the finding worth keeping.** Twenty wrong implementations were probed against the real file. Eighteen were caught at once; the two that were not were both real gaps in the tests rather than mistakes in the rules: a one-off that kept the *form's* travel object by reference instead of copying it, and a move that re-sorted the sessions by day. The first is now covered by the same "every travel is its own object" test that a session gets, and the second by a move that a day-order sort would visibly reorder.
+
 
 ### 11. Progress sentences
 

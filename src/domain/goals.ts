@@ -221,9 +221,9 @@ function fromDraft(draft: GoalDraft, id: string): Goal {
  */
 function draftRefusal(draft: GoalDraft): RefusalReason | null {
   return (
-    nameRefusal(draft.name) ??
+    checkName(draft.name) ??
     quotaRefusal(draft) ??
-    activityRefusal(draft.defaultActivityMinutes) ??
+    checkActivityMinutes(draft.defaultActivityMinutes) ??
     travelRefusal(draft.defaultTravel)
   )
 }
@@ -235,8 +235,13 @@ function draftRefusal(draft: GoalDraft): RefusalReason | null {
  * The check is against the name as typed, and the name is stored as typed: the
  * app refuses rather than repairs, and quietly trimming a person's words is a
  * repair. Trimming for the emptiness test only is a reading, not a change.
+ *
+ * Exported because a one-off has a name too, and `MAX_NAME_LENGTH` is the length
+ * of a label the grid can show rather than a rule about tasks. One name, one
+ * check, so a dentist appointment cannot be 60 characters while a task cannot be
+ * 41.
  */
-function nameRefusal(name: string): RefusalReason | null {
+export function checkName(name: string): RefusalReason | null {
   if (name.trim().length === 0) return 'empty-name'
   if (name.length > MAX_NAME_LENGTH) return 'name-too-long'
   return null
@@ -267,8 +272,13 @@ function quotaRefusal(draft: GoalDraft): RefusalReason | null {
  * the five-minute typed step. This is the one minute value in a draft that is
  * asked about the step, and the reason is that it stops being a target and
  * becomes real minutes on the grid.
+ *
+ * Exported for the same reason as `checkName`: `sessions.ts` checks the length of
+ * a block somebody is resizing against this, and a block on the grid is a block
+ * whatever put it there. A resize is measured on a grid, not typed into a quota,
+ * so the step applies to it too.
  */
-function activityRefusal(minutes: number): RefusalReason | null {
+export function checkActivityMinutes(minutes: number): RefusalReason | null {
   if (minutes < MIN_ACTIVITY_MINUTES) return 'too-short'
   if (!isOnTypedStep(minutes)) return 'not-a-step'
   return null

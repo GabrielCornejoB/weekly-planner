@@ -369,6 +369,27 @@ export function checkTravelMinutes(minutes: number): RefusalReason | null {
 }
 
 /**
+ * Whether a clock position is a time a board can hold at all: not negative, and
+ * on the five-minute typed step, so 1:40 is a time and 1:37 is not.
+ *
+ * This is the one rule a work interval and a placed block share about *when*
+ * something is, and it lives here for the same reason `checkTravelMinutes` does.
+ * A grid drag reports a quarter hour and a typed field reports a fifth, so both
+ * are already on this step and the check never fires on a real drop; what it
+ * does is stop 1:37 from being legal for a work interval and illegal for a
+ * session, which is the kind of drift that only shows up on a phone.
+ *
+ * Everything else about a minute, including the 6:00 and 22:00 edges and the
+ * fifteen-minute floor, belongs to the check that knows what the minute is for:
+ * `checkDayPlan` for work, `checkFootprintFits` for a placed block.
+ */
+export function checkMinute(minute: number): RefusalReason | null {
+  if (minute < 0) return 'too-short'
+  if (!isOnTypedStep(minute)) return 'not-a-step'
+  return null
+}
+
+/**
  * Whether a whole proposed day may replace the stored one: legal commute, legal
  * work intervals, and the resulting work day clear of every placed block.
  *

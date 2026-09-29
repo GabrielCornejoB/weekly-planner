@@ -34,8 +34,8 @@
  */
 
 import type { CreateId } from '@/domain/board'
-import { checkDayPlan, checkTravelMinutes } from '@/domain/schedule'
-import { isOnTypedStep, type MinuteRange } from '@/domain/time'
+import { checkDayPlan, checkMinute, checkTravelMinutes } from '@/domain/schedule'
+import { type MinuteRange } from '@/domain/time'
 import {
   type Board,
   type DayId,
@@ -104,7 +104,7 @@ export function moveWorkInterval(
   id: string,
   startMinute: number,
 ): Result<Board> {
-  const badMinute = minuteRefusal(startMinute)
+  const badMinute = checkMinute(startMinute)
   if (badMinute !== null) return { ok: false, reason: badMinute }
   const interval = findInterval(board, day, id)
   if (interval === null) return missingWork()
@@ -127,7 +127,7 @@ export function resizeWorkInterval(
   edge: ResizeEdge,
   minute: number,
 ): Result<Board> {
-  const badMinute = minuteRefusal(minute)
+  const badMinute = checkMinute(minute)
   if (badMinute !== null) return { ok: false, reason: badMinute }
   const interval = findInterval(board, day, id)
   if (interval === null) return missingWork()
@@ -207,23 +207,7 @@ function missingWork(): Result<Board> {
 }
 
 function rangeRefusal(range: MinuteRange): RefusalReason | null {
-  return minuteRefusal(range.startMinute) ?? minuteRefusal(range.endMinute)
-}
-
-/**
- * Whether a minute is a length a board can hold at all: not negative, and on
- * the five-minute typed step, so 1:40 is a time and 1:37 is not. Everything
- * else about a minute, including the day edges and the fifteen-minute floor,
- * belongs to `checkDayPlan`.
- *
- * A commute does not come through here. It is a length rather than a time, but
- * it is the same rule as a task's travel, so both ask `checkTravelMinutes` in
- * `schedule.ts` instead of keeping a copy of one rule in two places.
- */
-function minuteRefusal(minute: number): RefusalReason | null {
-  if (minute < 0) return 'too-short'
-  if (!isOnTypedStep(minute)) return 'not-a-step'
-  return null
+  return checkMinute(range.startMinute) ?? checkMinute(range.endMinute)
 }
 
 function byStartMinute(a: WorkInterval, b: WorkInterval): number {
