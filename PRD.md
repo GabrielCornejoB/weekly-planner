@@ -363,7 +363,7 @@ Add `domain/types.ts` with the interfaces, unions, and constants in this plan. E
 
 Done when: the file typechecks, uses interfaces for object shapes, and contains no `any`.
 
-### 4. Time and geometry helpers
+### 4. Time and geometry helpers [done]
 
 Implement clock formatting, duration formatting, drag snap, typed-step checks, bounds checks, overlap, and percent-of-day conversion.
 
