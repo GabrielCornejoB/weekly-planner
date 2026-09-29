@@ -475,11 +475,28 @@ One member was added to the vocabulary this task needed, an addition to the "at 
 **One reason the new tests had to be written before the probes all passed, which is the finding worth keeping.** Twenty wrong implementations were probed against the real file. Eighteen were caught at once; the two that were not were both real gaps in the tests rather than mistakes in the rules: a one-off that kept the *form's* travel object by reference instead of copying it, and a move that re-sorted the sessions by day. The first is now covered by the same "every travel is its own object" test that a session gets, and the second by a move that a day-order sort would visibly reorder.
 
 
-### 11. Progress sentences
+### 11. Progress sentences [done]
 
 Implement the quota math and the list sentences from this plan.
 
 Done when tests match the five table rows, a travel-heavy study session whose activity is 1 hour does not count the travel, two gym visits of different lengths count as 2, and the 1:40 wording uses hours and minutes rather than a decimal.
+
+Done in `src/domain/progress.ts` and `src/domain/progress.test.ts` (47 tests). One export, `goalProgress(board, goal)`, returns the numbers, the status, and the whole row as one string. The goal is handed in rather than looked up, because the caller is already walking `board.goals` to build the list, and a goal that is not on this board has no honest progress to report. `ProgressStatus` and `GoalProgress` are the other two exports; nothing here mutates, and nothing here refuses.
+
+The module is only allowed to touch a session's `activityMinutes` and its `done` mark, and that is the rule most of the file is about. Travel is never counted, so a study block with half an hour of travel each way is an hour of progress; a visit's length is never counted either, so two gym visits of 45 and 90 minutes are two visits and the sentence never mentions an hour. A one-off is not in `board.sessions` at all and has no quota, so it cannot reach a total. A test drives all three of those, and a probe that adds travel into the sum or points the reader at `board.oneOffs` fails immediately.
+
+**The short form counts hours itself rather than asking `formatDuration`, and that was a bug the tests found.** The rule is the one this plan states: both sides whole hours reads `2 hours done of 5.`, and anything else names both sides in full — `1 hour 40 minutes done of 5 hours.` The goal is left bare in the short form because that is how the worked examples read. Zero is a whole number of hours, so an empty task reads `0 hours done of 5.` and not `0 minutes done of 5.`: `formatDuration` spells a zero as `0 minutes`, which is right for a length such as absent travel and wrong for a total, because it puts two different units in one clause. The first version used `formatDuration` for the done side and every zero-done row came out wrong.
+
+**The surplus clause is about the grid, and it waits until it is not redundant.** `2 hours done of 5. Nothing is unplaced. 1 hour more than the goal is on the grid.` is the product's second worked example. `6 hours done of 5. Nothing is unplaced.` is the third, and it is the same code with one clause missing: once the done total is past the goal the first clause already says so, so the clause is only added when the grid is over and the done total is not. Unplaced cannot go below zero and the surplus is measured against `placed` rather than `done`, and since every done block is a placed block those are the same number — one surplus to keep, and a test pins `done <= placed`.
+
+**The status is derived here, and `unplaced` is asked first.** A task with four of five hours done and nothing else placed has still not been planned, and the week is not ready because of it, so `unplaced` outranks `met`. Then `over`, then `met`, and `planned` is what is left. A test sweeps every combination of done, placed, and quota the numbers can be in and asserts the set of statuses is exactly the four, which fails both ways: a fifth status cannot appear quietly and a dead branch cannot hide.
+
+**The verb agrees with the quantity, not with the presence of an hour.** `1 hour is not on the grid.` and `4 hours are not on the grid.`, and a quantity of minutes is plural however many hours are in it, so `1 hour 40 minutes are not on the grid.` A first version asked whether the measure was a whole number of hours and got `4 hours is not on the grid`, which the tests caught; `measure` now reports one singular measure, exactly one hour, and one singular visit.
+
+The test file builds its boards two ways, on purpose. Most cases are literal sessions so a case can state exact minutes, and the `through the real mutations` group places, marks done, resizes, and deletes through `sessions.ts` so the sentence is proved to follow the board rather than to be composed of the right words. That group is what pins the product scope's "resize a done block and the done total follows" and "deleting a block removes that credit".
+
+Twenty-eight wrong implementations were probed against the real file and twenty-eight are caught. Two of them got through on the first pass, and both were gaps in the tests rather than mistakes in the rules: no case had a grid that was over the goal while the done total was not — the one case where measuring the surplus against `done` gives a different number — and the purity test used a single-session board, so a reader that sorted the array in place had nothing to shuffle. Both are covered now, and a re-run catches all twenty-eight.
+
 
 ### 12. View models
 
