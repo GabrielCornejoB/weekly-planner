@@ -6,6 +6,8 @@ import { defineConfig } from 'vitest/config'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Deployed to https://gabrielcornejob.github.io/weekly-planner/ (project pages).
+  base: '/weekly-planner/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
