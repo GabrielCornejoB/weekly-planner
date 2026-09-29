@@ -1,0 +1,18 @@
+# Progress
+
+## Task 1 — Scaffold the client app [done]
+
+- Scaffolded with `npm create vite@latest` (`create-vite` 9.2.1, `react-ts` template). The repo was non-empty, so the app was generated beside it in a temp dir and moved in. `docs/product-scope.md` untouched and still present. Repo `README.md` kept; template README not copied.
+- Stack as generated: Vite 8.3, React 19, TypeScript 6.0, `tsc -b` in the build script.
+- Added dev deps `tailwindcss@4.3.3` and `@tailwindcss/vite@4.3.3` (Vite plugin, no PostCSS, no config file). `src/index.css` contains only `@import "tailwindcss";`.
+- `@` → `src` alias added in `tsconfig.app.json` (`paths`, no `baseUrl` — TS 6.0 deprecates `baseUrl`) and in `vite.config.ts` (`resolve.alias`, `fileURLToPath(new URL('./src', import.meta.url))`). Proven end to end: `src/main.tsx` imports `@/App.tsx` and the build passes.
+- `@types/node` pinned to `^22` to match the expected Node 22 LTS runtime (template shipped `^24`).
+- Starter UI stripped: no `src/App.css`, no `src/assets/`, no `public/` (logos, favicon, icons), no counter. `src/App.tsx` renders `null` — an empty page. `index.html` titled `Weekly Planner`, phone viewport `width=device-width, initial-scale=1.0`, favicon link removed.
+- System font: no webfont is loaded. Tailwind v4 preflight applies `--font-sans`, whose v4.3.3 default is a system stack (`-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, ...`). Verified present in the built CSS.
+- Verified: `npm run build` exits 0 (typechecks, then emits minified JS and CSS into `dist/`); `npm run lint` exits 0; `npm run dev` serves an empty page titled `Weekly Planner`; no SCSS and no `tailwind.config.*` anywhere; runtime deps are only `react` and `react-dom`.
+- Also committed the previously untracked planning files (PRD, product scope, PROMPT, ralph loop script, progress).
+
+### Notes for later tasks
+
+- **Task 2**: `create-vite` 9.2.1 ships **oxlint**, not ESLint (`.oxlintrc.json`, `npm run lint` → `oxlint`). "Keep the template ESLint setup" was read as "keep the template's lint setup", so oxlint stays; ban explicit `any` by turning `typescript/no-explicit-any` to `"error"` in `.oxlintrc.json`. Also: the template's `tsconfig.app.json` does **not** set `"strict"` (confirmed absent in effective config) — task 2 must add it, plus `noUncheckedSideEffectImports` etc. as needed. No `vite-env.d.ts`; `tsconfig.app.json` uses `"types": ["vite/client"]`.
+- Tests do not exist yet (`npm test` is a task-2 deliverable); task 1's checks were `tsc -b`, the production build, lint, and dev-server smoke tests.
