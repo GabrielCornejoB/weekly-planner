@@ -49,6 +49,13 @@ export interface WorkInterval {
   endMinute: number
 }
 
+/**
+ * Which end of a block a resize grabs. The grid reports one edge at a time and
+ * the mutation keeps the other end where it is, so a drag never has to restate
+ * a whole range to shorten a block by a minute.
+ */
+export type ResizeEdge = 'start' | 'end'
+
 export interface DayPlan {
   workIntervals: WorkInterval[]
   commuteBeforeMinutes: number
@@ -144,6 +151,7 @@ export type RefusalReason =
   | 'invalid-quota'
   | 'kind-locked'
   | 'missing-goal'
+  | 'missing-work'
   | 'commute-without-work'
   | 'invalid-backup'
   | 'storage-unavailable'

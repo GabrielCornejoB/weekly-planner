@@ -156,6 +156,8 @@ export interface WorkInterval {
   endMinute: number;
 }
 
+export type ResizeEdge = "start" | "end";   // added in task 8
+
 export interface DayPlan {
   workIntervals: WorkInterval[];
   commuteBeforeMinutes: number;
@@ -241,7 +243,7 @@ export type Result<T> =
   | { ok: false; reason: RefusalReason };
 ```
 
-`RefusalReason` is a closed union. At least: `outside-day`, `overlaps`, `too-short`, `not-a-step`, `empty-name`, `name-too-long`, `invalid-quota`, `kind-locked`, `missing-goal`, `commute-without-work`, `invalid-backup`, `storage-unavailable`. Wording lives in `refusalMessage(reason): string`, which tests cover. Components render that string. They do not build it.
+`RefusalReason` is a closed union. At least: `outside-day`, `overlaps`, `too-short`, `not-a-step`, `empty-name`, `name-too-long`, `invalid-quota`, `kind-locked`, `missing-goal`, `commute-without-work`, `invalid-backup`, `storage-unavailable`. Task 8 added `missing-work`, for a work interval that is not on the day being changed. Wording lives in `refusalMessage(reason): string`, which tests cover. Components render that string. They do not build it.
 
 A session footprint is travel-before, then activity, then travel-after. Commute is not stored as a range. Morning commute ends at the first work start. Evening commute starts at the last work end. Moving that start or end moves the commute. A day with no work intervals cannot have a commute. Commute does not attach to middle fragments.
 
@@ -395,11 +397,26 @@ Done in `src/domain/schedule.ts` and `src/domain/schedule.test.ts` (68 tests). O
 
 `BlockTarget` is declared in `schedule.ts`, not in `types.ts`, because it is not board vocabulary — nothing on the board stores it — and because this is where a stretch learns what holds it. Task 12's `view.ts` imports it for `GridBlockView.target`.
 
-### 8. Work and commute mutations
+### 8. Work and commute mutations [done]
 
 Implement add, move, resize, and remove for work intervals, plus set commute. Removing the last interval clears commute. Changing the outer start or end recomputes the commute footprint and refuses if that footprint hits a session or leaves 6:00–22:00.
 
 Done when tests cover the product examples: leave at 12:00 by removing 14:00–17:00; start earlier than 8:00; appointment day with work at 10:00–12:00 and 14:00–17:00; appointment day with work at 8:00–9:30, 10:30–12:00, and 14:00–17:00. Also cover a weekend gaining a work interval, and a commute change refused because a session is in the way. The input board in each test is unchanged.
+
+Done in `src/domain/work.ts` and `src/domain/work.test.ts` (71 tests). All five mutations go through one private `commit(board, day, candidate)`: build the day that would result, hand it to `checkDayPlan`, and only then make a board. That is the whole reason a move or a resize can move the commute without any of the five functions knowing what a commute is — the commute moves because the *day* is re-checked, not because a rule was copied into four call sites. `removeWorkInterval` also goes through the door even though a removal can only free time and can never be refused for a reason of its own.
+
+Three decisions are recorded in the module header and pinned by tests:
+
+- **Work does not change days.** The id has to be on the day being changed, so a drop on another column is refused rather than silently pulling an interval off its day. Which days have work is the day editor's question; this keeps `moveWorkInterval` a single-day change instead of a remove plus an add.
+- **Removing the last interval clears both commute directions.** It is a rule, not a repair: a commute hangs off work, so `checkDayPlan`'s `commute-without-work` would otherwise refuse the removal of the last interval, making a day impossible to empty.
+- **The typed step is checked here, not in the component.** A 1:37 start is told to use 1:35 or 1:40 rather than that it is outside 6:00–22:00, which is true and useless. A commute is the one place the order is reversed, and `commuteRefusal` says why: every whole number under five is also off the five-minute step, so three minutes of commute must be reported as too short.
+
+Two members were added to the vocabulary this task needed, both additions to the "at least" list above rather than departures from it:
+
+- `RefusalReason` gained **`missing-work`**. A work interval that is not on the day being changed has no honest sentence among the existing twelve — `missing-goal` is nonsense for a work block and `overlaps` is a lie — and a stale grid drop is a real event, since the grid is where ids come from. `types.test.ts` was updated so the closed set still cannot grow quietly.
+- `types.ts` gained **`ResizeEdge` (`'start' | 'end'`)**. A resize reports one edge, which is what lets a grid drag and a typed field share one mutation; it lives in `types.ts` rather than here because a dumb component has to be able to name it, and the plan only lets components import types, `colors/palette.ts`, and display helpers.
+
+Also decided here for the later tasks: intervals are stored in **clock order** on every mutation, so a backup text reads the way the grid does; the day that changed is rebuilt down to fresh interval objects, while the other six days are shared; and `addWorkInterval` spends its id even when the change is refused, since the check does not depend on it.
 
 ### 9. Goal mutations
 

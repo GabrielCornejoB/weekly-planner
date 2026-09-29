@@ -128,6 +128,7 @@ function refusalLabel(reason: RefusalReason): string {
     case 'invalid-quota':
     case 'kind-locked':
     case 'missing-goal':
+    case 'missing-work':
     case 'commute-without-work':
     case 'invalid-backup':
     case 'storage-unavailable':
@@ -136,7 +137,11 @@ function refusalLabel(reason: RefusalReason): string {
 }
 
 describe('RefusalReason', () => {
-  it('is the closed set the plan lists', () => {
+  it('is the closed set the plan lists, plus the one reason work needed', () => {
+    // The plan says "at least", and one more reason earned its place. A work
+    // interval that is not on the day being changed has no honest sentence
+    // among the rest of them: calling it a missing goal would be nonsense, and
+    // calling it an overlap would be a lie.
     const reasons: RefusalReason[] = [
       'outside-day',
       'overlaps',
@@ -147,6 +152,7 @@ describe('RefusalReason', () => {
       'invalid-quota',
       'kind-locked',
       'missing-goal',
+      'missing-work',
       'commute-without-work',
       'invalid-backup',
       'storage-unavailable',
