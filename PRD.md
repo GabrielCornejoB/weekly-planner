@@ -369,11 +369,13 @@ Implement clock formatting, duration formatting, drag snap, typed-step checks, b
 
 Done when tests cover: `8:00`, `9:30`, `17:00`; `15 minutes`, `1 hour`, `2 hours`, `1 hour 40 minutes`; drag snap of 6:07 to 6:00 or 6:15 by the chosen nearest rule, documented in the test; typed 1:40 accepted; 6:00 start and 22:00 end accepted; 5:55 and 22:05 rejected; a 15-minute block is `15 / 960` tall.
 
-### 5. Preset board
+### 5. Preset board [done]
 
 Implement `createDefaultBoard(createId)` and `resetBoard(createId)`. Monday–Friday get 8:00–12:00 and 14:00–17:00. Saturday and Sunday are empty. Commute is 0. Goals, sessions, and one-offs are empty. Ids come from `createId`.
 
 Done when a test builds the preset with a fake id function and checks those minutes, and a second call does not mutate the first board.
+
+Done in `src/domain/board.ts` and `src/domain/board.test.ts` (16 tests). `CreateId` is exported here so the mutations in tasks 8–15 share one id-source type. The seven days are written out literally rather than looped over `DAYS`, so a new day in the union fails the build instead of producing a day with no plan. `resetBoard(createId)` takes no board on purpose: reset discards the whole document, so the caller replaces its state with the result.
 
 ### 6. Palette
 
