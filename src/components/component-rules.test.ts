@@ -121,12 +121,28 @@ describe('what a component may emit', () => {
    * nobody wired up cannot be quietly dropped.
    */
   const emits: Record<string, readonly string[]> = {
+    BackupPanel: ['onClose', 'onCopy', 'onImport'],
+    BlockFields: ['onChange'],
     ColorSwatches: ['onChange'],
     ConfirmDialog: ['onCancel', 'onConfirm'],
+    DayEditor: ['onCancel', 'onSubmit'],
     DaySelect: ['onChange'],
     DurationInput: ['onChange'],
+    GoalForm: ['onCancel', 'onSubmit'],
     Modal: ['onClose'],
+    OneOffForm: ['onCancel', 'onDelete', 'onSetDone', 'onSubmit'],
     RefusalBanner: ['onDismiss'],
+    SessionEditor: ['onCancel', 'onDelete', 'onSetDone', 'onSubmit'],
+    TaskList: [
+      'onAddGoal',
+      'onAddOneOff',
+      'onDeleteGoal',
+      'onEditGoal',
+      'onEditOneOff',
+      'onSelectGoal',
+    ],
+    TimeInput: ['onChange'],
+    WeekGrid: ['onBlockDrop', 'onBlockResize', 'onBlockTap', 'onDayHeaderTap', 'onEmptyTap'],
   }
 
   it('covers every component in the folder', () => {
@@ -139,6 +155,140 @@ describe('what a component may emit', () => {
       expect(callbacksOf(`${name}.tsx`), `${name} should emit only ${expected.join(', ')}`)
         .toEqual([...expected].sort())
     }
+  })
+})
+
+/**
+ * The rules task 17 states for the planning surfaces in words.
+ *
+ * The import checks above say a component cannot *reach* a rule module. These
+ * say what is true even if that were not so: that the chart draws the geometry
+ * it was given rather than computing it, that a form hands a draft up rather
+ * than keeping it, and that a panel holds a string without reading it as
+ * anything. Each one is a way the split could be quietly undone from the inside,
+ * which is the failure the split exists to prevent.
+ */
+/**
+ * An arbitrary-value class with something interpolated inside its brackets.
+ *
+ * Written with `\x60` and an escaped `]` on purpose. A backtick cannot go
+ * literally into this regex — it would end the enclosing template literal — and
+ * `[^]]` is a class containing a *closing* bracket, which does not mean what it
+ * looks like it means. Both were found by probing the pattern against known
+ * cases, and a pattern that cannot be written down is not a check.
+ *
+ * It is deliberately narrow, and narrow in a way that took three attempts to get
+ * right. A naive `/\[[^\]]*\$\{[^\]]*\]/` matches across newlines when `s` is
+ * absent, so one interpolation in a class attribute was paired with a
+ * *different* class attribute hundreds of lines below and the report named a
+ * file that was entirely innocent. The fix is to forbid the characters that
+ * could span that far: a quote, a backtick, or a newline between the bracket and
+ * the interpolation. A real assembled class is all on one line, and anything
+ * longer than that is not a class name.
+ *
+ * A plain template literal that interpolates whole class names is fine and
+ * common here, because each of those names is a literal somewhere in the file.
+ */
+const ASSEMBLED_CLASS = /\[[^"'\x60\n]*\$\{[^\]\n]*\]/
+
+describe('what a component may not do', () => {
+  /**
+   * The functions that change a board.
+   *
+   * Not one of them may be named in a component, and not merely as an import:
+   * a call copied into a file would be past the import check while being exactly
+   * as wrong. These are the only names in the app that mutate anything.
+   */
+  const mutations = [
+    'addWorkInterval',
+    'createGoal',
+    'createOneOff',
+    'deleteGoal',
+    'deleteOneOff',
+    'deleteSession',
+    'importBoardText',
+    'loadBoard',
+    'moveOneOff',
+    'moveSession',
+    'moveWorkInterval',
+    'placeOneOff',
+    'placeSession',
+    'removeWorkInterval',
+    'resizeOneOff',
+    'resizeSession',
+    'resizeWorkInterval',
+    'saveBoard',
+    'setCommute',
+    'setOneOffDone',
+    'setOneOffTravel',
+    'setSessionDone',
+    'setSessionTravel',
+    'updateGoal',
+  ]
+
+  it('names no mutation', () => {
+    const offences = componentNames().flatMap((name) => {
+      const source = sourceOf(name)
+      return mutations.filter((mutation) => source.includes(mutation)).map((m) => `${name} names ${m}`)
+    })
+    expect(offences).toEqual([])
+  })
+
+  /**
+   * The chart is handed its geometry.
+   *
+   * `topPercent` and `heightPercent` are computed once in the view model, from
+   * the block's own stretch, so a rectangle and the numbers that placed it
+   * cannot disagree. A grid that called them again would have a second opinion
+   * about where a block is, and the one it drew would be the one nobody checked.
+   */
+  it('leaves the chart with no geometry of its own', () => {
+    const source = sourceOf('WeekGrid.tsx')
+    expect(source).not.toMatch(/\btopPercent\(/)
+    expect(source).not.toMatch(/\bheightPercent\(/)
+    // It applies them as strings off the block, which is the whole contract.
+    expect(source).toContain('`${block.topPercent}%`')
+    expect(source).toContain('`${block.heightPercent}%`')
+  })
+
+  it('renders the sentence it was given rather than composing one', () => {
+    // A progress sentence is composed in one module and handed down whole, so a
+    // row cannot build a second opinion about how much is done and then disagree
+    // with the grid. The check is on the *numbers* read off a progress record,
+    // because the words can be spelled any number of ways: a component could
+    // assemble a correct-looking sentence out of the right figures and still be a
+    // second place deciding what a task's progress means.
+    const reaching = componentNames().filter((name) =>
+      /progress\.(done|placed|goal|unplaced|over)\b/.test(sourceOf(name)),
+    )
+    expect(reaching).toEqual([])
+  })
+
+  it('never builds a class name out of parts', () => {
+    // Tailwind emits only the class names it can read whole in the source, so an
+    // arbitrary value assembled from pieces survives a dev server and compiles to
+    // nothing in a production build. The symptom is a layout that is simply
+    // absent, with no error anywhere — and it is the exact trap `palette.ts`
+    // records for a color, which is why it is checked from source here too.
+    //
+    // The first version of this task had `grid-cols-[${GUTTER}_repeat(7,...)]`
+    // in the chart. It looked fine, it typechecked, it rendered, and the
+    // production build emitted no `grid-cols-[` rule at all: the whole week
+    // would have been one auto-width column. Only reading the built CSS found it.
+    const assembled = componentNames().filter((name) =>
+      ASSEMBLED_CLASS.test(sourceOf(name)),
+    )
+    expect(assembled).toEqual([])
+  })
+
+  it('gives the panel no way to read its text', () => {
+    // The backup panel holds the export text and the pasted text, and reads
+    // neither as a board. That is what lets "Nothing was replaced." stay true
+    // when the person pastes something that is not a board at all: the decision
+    // was made before any confirm dialog was opened.
+    const panel = sourceOf('BackupPanel.tsx')
+    expect(panel).not.toMatch(/\bJSON\./)
+    expect(panel).not.toMatch(/\bparse\b/i)
   })
 })
 
@@ -171,16 +321,41 @@ describe('Modal', () => {
 
 describe('component state', () => {
   /**
-   * Holding the text somebody is typing is allowed and is all that is allowed.
+   * What a component is allowed to keep, which is its own input and nothing
+   * about the board.
    *
    * A component that grew `useState` for anything else would be keeping a fact
-   * about the board or a decision about a dialog in the one place that has no
-   * way to be asked whether it is still true.
+   * about the week, or a decision about a dialog, in the one place that has no
+   * way to be asked whether it is still true. The two categories below are the
+   * only two this folder has ever needed:
+   *
+   * - a form holding the draft somebody is typing, which the plan allows
+   *   explicitly, since emitting the draft on submit is the whole of a form;
+   * - the chart holding the one drag currently under a finger, which is where
+   *   that finger is rather than anything about a block.
    */
-  const mayHoldState = ['DurationInput.tsx']
+  const mayHoldState = [
+    'BackupPanel.tsx',
+    'DayEditor.tsx',
+    'DurationInput.tsx',
+    'GoalForm.tsx',
+    'OneOffForm.tsx',
+    'SessionEditor.tsx',
+    'TimeInput.tsx',
+    'WeekGrid.tsx',
+  ]
 
-  it('is held only by a form field, and only for its own text', () => {
+  it('is held only by a form, a field, and the chart', () => {
     const holding = componentNames().filter((name) => /\buseState\b/.test(sourceOf(name)))
     expect(holding).toEqual(mayHoldState)
+  })
+
+  it('never names the whole board', () => {
+    // A dumb component is handed a view model, a row, a block, or a day, and
+    // never the document. The distinction is the point: a component that had
+    // the board could read past its own props, and the only thing stopping a
+    // rule from creeping in at that point is not having asked for it.
+    const offenders = componentNames().filter((name) => /\bBoard\b/.test(sourceOf(name)))
+    expect(offenders).toEqual([])
   })
 })

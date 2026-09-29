@@ -113,6 +113,39 @@ import {
  */
 export type { BlockTarget } from '@/domain/schedule'
 
+/**
+ * The drafts a form submits, re-exported for the same reason `BlockTarget` is.
+ *
+ * A form owns every field of the thing it is editing and hands all of them up at
+ * once, and the shape it hands up is not this file's to invent: `createGoal`,
+ * `updateGoal`, and `placeOneOff` are each handed exactly these, and a form that
+ * declared its own copy of a *discriminated union* would be a second place for
+ * the two halves of a goal to drift apart. So the drafts are carried out to the
+ * edge next to the types they are made of, and the compiler is the one that says
+ * a field is missing.
+ *
+ * Only the two drafts the domain already owns are re-exported. `SessionEditor`
+ * and `DayEditor` emit shapes with no domain counterpart — an editor edits a
+ * block or a day, which is a *sequence* of the domain's separate move, resize,
+ * and travel mutations rather than one call — and those are declared by the
+ * forms themselves, the way `DaySelect` declares the shape of an option.
+ */
+export type { GoalDraft, TimeGoalDraft, CountGoalDraft } from '@/domain/goals'
+export type { OneOffDraft } from '@/domain/sessions'
+
+/**
+ * The four states a task row can be in, re-exported for the same reason.
+ *
+ * A row's `status` is a `ProgressStatus`, and a component that wants to give the
+ * four of them four different looks has to be able to *name* the set — a lookup
+ * keyed by status is how it is told apart from the rest, and a lookup needs the
+ * union rather than four hand-written strings that could be misspelled. The
+ * sentences behind it stay in `progress.ts`; only the closed set of names is
+ * carried out here, and it is carried out because it travels inside
+ * `GoalProgress` and would otherwise be unreachable at the edge.
+ */
+export type { ProgressStatus } from '@/domain/progress'
+
 /** How a strip is colored. Work and commute are stone; the rest wear a hue. */
 export type GridTone = 'work' | 'commute' | 'activity' | 'travel'
 
