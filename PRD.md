@@ -293,6 +293,32 @@ export interface GridBlockView {
 
 Work is draggable and resizable. Commute and travel are visible, not independently dragged. Tapping travel opens the session or one-off that owns it. Activity blocks show the name. Done blocks keep their color and also say `Done`.
 
+`view.ts` re-exports `BlockTarget`, so `WeekGrid` can name `onBlockTap(target)` without importing `schedule.ts`, which the task 17 search bans. A view key is the kind, the board id, and the part: `work:w-am`, `session:s1:activity`, `session:s1:before`, `commute:monday:after`. It is unique across the whole model, which is why one block drawn as three strips is three keys.
+
+Task 12 also settled the ruler, so the grid never does geometry. `GridModel.lines` is the horizontal rules from 6:00 to 22:00 inclusive: hours are the guides, half hours are faint, and there is no line every fifteen minutes.
+
+```ts
+export interface GridLineView {
+  minute: number;
+  label: string | null;   // clock text on an hour line, nothing on a half hour
+  major: boolean;
+  topPercent: number;
+}
+
+export interface GridDayView {
+  day: DayId;
+  label: string;
+  blocks: GridBlockView[];
+}
+
+export interface GridModel {
+  days: GridDayView[];
+  lines: GridLineView[];
+}
+```
+
+A goal row nests the whole `GoalProgress` rather than copying a sentence and a status out of it, so the two facts a row renders cannot come from two different calculations. A one-off row is a different case of the union — a day, a clock span, and a done mark — and has no quota and no way to be selected for placement. `DAY_OPTIONS` carries the seven days and their names out to the day select, which is a dumb component and may not import this module.
+
 Palette classes are complete strings in `palette.ts`, for example `bg-sky-500` and `bg-sky-200`. Never build a class with `` `bg-${color}-500` ``. Tailwind would drop it. Work uses stone utilities, not a `ColorId`. Commute uses a lighter stone treatment and the label `Travel`. Task travel uses the soft shade of that task's color and the label `Travel`.
 
 `nextColorId(used)` returns the first unused palette id, then wraps.
@@ -498,11 +524,35 @@ The test file builds its boards two ways, on purpose. Most cases are literal ses
 Twenty-eight wrong implementations were probed against the real file and twenty-eight are caught. Two of them got through on the first pass, and both were gaps in the tests rather than mistakes in the rules: no case had a grid that was over the goal while the done total was not — the one case where measuring the surplus against `done` gives a different number — and the purity test used a single-session board, so a reader that sorted the array in place had nothing to shuffle. Both are covered now, and a re-run catches all twenty-eight.
 
 
-### 12. View models
+### 12. View models [done]
 
 Implement `toGridModel(board)` and `toTaskListModel(board)`. Grid blocks carry percents, tone, color id, done, and drag flags. List rows carry the progress sentence and a status the component can map to classes: `unplaced`, `planned`, `met`, or `over`. Status is derived, not stored.
 
 Done when a test checks the 15-minute and 100-minute heights, commute and travel are not draggable, work and activity are draggable, and a goal with unplaced time is `unplaced`.
+
+Done in `src/domain/view.ts` and `src/domain/view.test.ts` (61 tests). Two exports do the work, and both are pure functions of a `Board`: they change nothing, they refuse nothing, and they never reach past their argument. A view model that also asked the domain a question would be a rule wearing a component's clothes, which is the one thing this split exists to prevent.
+
+**The grid is drawn from occupancy, not by walking the four lists.** Every rectangle on the week chart is a stretch, and `dayOccupancy` already reports all of them for a day in clock order with the work, the commute, the activities, and the travels in one list. Building the view out of that list is why a commute cannot be forgotten, why a block with travel is three strips rather than one, and why the order on screen is the order in time rather than the order things were created. A probe that filtered the board's arrays instead of asking `dayOccupancy` failed fifteen tests, and one that dropped the travel strips failed eleven.
+
+**Nothing is filtered, clamped, or repaired.** A block outside 6:00–22:00 — which only a board that skipped every check can produce — keeps its geometry, and the percentage says so rather than being tidied into the column. A view model that repairs a geometry can disagree with the one drawn beside it, and a person would see two different truths about the same minute.
+
+**A travel strip is its own block, and a quiet one.** The product says travel is drawn *on* the block, so it gets its own `topPercent` and its own tone. That is also why a grid resize reports the *activity's* edge: the rectangle a finger lands on is the activity. It is not draggable or resizable, and its `target` is the block that owns it, so a tap on it opens that block's editor. It inherits the block's color and its done mark, and carries no second line, because a five-minute strip has no room for one.
+
+**A commute has no target, because it belongs to the day.** It hangs off the outer ends of the day's work, so there is no block behind it to open, and it is not draggable at all; the day header is what opens the day editor. It is never `done`, because work is not a task. Its key is `commute:<day>:<direction>`, which is the only key in the model with no board id in it.
+
+**`id` is a view key, and it is unique across the whole model.** It is not a board id, because a commute has no board id and the same field has to be a string for all four tones. A key names the kind, the id, and — where a block is more than one strip — the part, so `session:s1:activity` and `session:s1:before` are two keys. A work interval and a session that somehow shared a raw id still get different keys. **This was a real bug the tests found**: the first version keyed a placed block by its owner alone, so a block with travel was three rectangles sharing one key, and the uniqueness sweep caught it. The key scheme is now the reason `block(model, 'session:s1:activity')` is how a test names the activity at all.
+
+**The geometry is read off the stretch, not off the block that produced it.** A travel strip's height is its own minutes even though the block's length lives on the activity, so a rectangle and the numbers that placed it cannot disagree. A test resizes an activity's start edge through the real mutation and asserts the travel before it keeps its ten minutes and stays glued to the new left edge — a block is contiguous, so there is nothing else it could do — while the travel after it does not move at all. That test was wrong twice before it was right: the first version assumed the travel would stay put, and the second assumed a resize by ten minutes when the edge it named was fifty minutes away.
+
+**A session whose task is not on the board is still drawn.** A stored blob can name a task that is gone, and the block holds real minutes, so hiding it would hide a real conflict. It is labelled `Task not on this board` and given `colorId: null`, because there is no task color to inherit and inventing one would be a lie. This widens what `null` means on `colorId` — it is no longer only work and commute — and it is the one addition this task made to the plan's own vocabulary. The alternative, dropping the block, would have made a conflicting block invisible.
+
+**A row's `status` is `progress.ts`'s, not a second opinion.** A goal row nests the whole `GoalProgress`, so the sentence and the status a row renders cannot come from different calculations, and the orchestrator does not re-derive a number it is about to show. A test asserts a goal row's own keys are exactly the five it declares, which is what caught a probe that added a `status` beside `progress.status` where the two could have disagreed. A one-off row is a different case of the union: a day, a clock span read through the footprint so it includes travel, and a done mark — no quota, no fraction, and no way to be selected, since selecting a task is what places that task's defaults and a one-off has none. The list is goals first, then one-offs, each in the order the board holds them.
+
+**`DAY_OPTIONS` exists for task 16's day select.** A day select is a dumb component and may not import this module, so the seven days and their names are carried out to the edge rather than read from `DAYS` inside a component. `DAY_LABELS` is a `Record<DayId, string>`, so a new day in the union fails the build here rather than producing a column with no name.
+
+**A second real bug, found by a probe, and it was in the ruler.** `gridLines` first stepped by 30 *and* pushed a line at `minute + 30`, so every half hour was emitted twice and every half hour was labelled as an hour. The count of hour lines caught it. The loop is now one line per half hour with `major` decided by `minute % 60 === 0`.
+
+**Thirty-seven wrong implementations were probed against the real file, and thirty-seven are caught.** The first pass caught thirty-four; the three that got through were all my probes being no-ops rather than tests being weak — a constant I added and never used, a property the type did not have, and a cache nothing ever wrote to — and the fourth was a real gap, the second status, which is now covered. Also caught: the day span hard-coded as 24 hours; the top measured from midnight; a line every fifteen minutes; a half hour with hour text on it; travel or work draggable; a commute naming a work interval; a done activity that stops being draggable; `Done` dropped from a done block; its length dropped to keep `Done`; a travel strip named after the block or given a second line; work wearing a hue; an orphan session left blank or given a made-up color; the goals sorted by name; the one-offs listed first; a column drawn bottom-up; a one-off clock span ignoring its travel; and either model cached and reused, which is the probe that proves the purity tests do something. Every probe was reverted and the file checked back against a backup.
 
 ### 13. Refusal copy
 
