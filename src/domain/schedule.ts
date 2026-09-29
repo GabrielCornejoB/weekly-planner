@@ -43,7 +43,7 @@ import {
   type TravelMinutes,
   type WorkInterval,
 } from '@/domain/types'
-import { isWithinDay, rangesOverlap, type MinuteRange } from '@/domain/time'
+import { isOnTypedStep, isWithinDay, rangesOverlap, type MinuteRange } from '@/domain/time'
 
 /** A placed block: one session of a task, or a one-off with no task behind it. */
 export type PlacedTarget =
@@ -339,6 +339,32 @@ export function checkCommute(plan: DayPlan, commute: TravelMinutes): RefusalReas
   if (plan.workIntervals.length === 0 && (commute.beforeMinutes > 0 || commute.afterMinutes > 0)) {
     return 'commute-without-work'
   }
+  return null
+}
+
+/**
+ * Whether a number of travel minutes is a length a board can hold at all:
+ * nothing, or at least five minutes, on the five-minute typed step.
+ *
+ * Commute and a task's travel are the same rule from the plan, so it is asked
+ * once here. `work.ts` and `goals.ts` both hand their typed minutes to this
+ * rather than each keeping a copy, which is what stops a commute from accepting
+ * 7 minutes while a task's default travel refuses it.
+ *
+ * The floor is asked before the step, and that order is the point. Every whole
+ * number under five is also off the five-minute step, so a person who typed
+ * three minutes is told that travel is five minutes or nothing rather than being
+ * told their number is not a multiple of five. Both refusals leave the same two
+ * choices, so the one that explains the rule is the one worth saying.
+ *
+ * This judges a number someone typed. `stretchRefusal` below judges a real
+ * stretch read back off a day, and needs no step rule: a stretch is the
+ * difference of two stored minutes.
+ */
+export function checkTravelMinutes(minutes: number): RefusalReason | null {
+  if (minutes < 0) return 'too-short'
+  if (minutes !== 0 && minutes < MIN_TRAVEL_MINUTES) return 'too-short'
+  if (!isOnTypedStep(minutes)) return 'not-a-step'
   return null
 }
 

@@ -29,15 +29,14 @@
  *   else. A 1:37 start is told to use 1:35 or 1:40, which is something a person
  *   can act on, rather than being told it is outside 6:00 to 22:00, which is
  *   true and useless. The bounds and the overlaps are `checkDayPlan`'s. A
- *   commute is the one exception, where the five-minute floor is asked first,
- *   and `commuteRefusal` says why.
+ *   commute is not a time at all, so it skips this and asks
+ *   `checkTravelMinutes`, the rule it shares with a task's travel.
  */
 
 import type { CreateId } from '@/domain/board'
-import { checkDayPlan } from '@/domain/schedule'
+import { checkDayPlan, checkTravelMinutes } from '@/domain/schedule'
 import { isOnTypedStep, type MinuteRange } from '@/domain/time'
 import {
-  MIN_TRAVEL_MINUTES,
   type Board,
   type DayId,
   type DayPlan,
@@ -162,7 +161,8 @@ export function removeWorkInterval(board: Board, day: DayId, id: string): Result
  * visible day.
  */
 export function setCommute(board: Board, day: DayId, commute: TravelMinutes): Result<Board> {
-  const badMinute = commuteRefusal(commute.beforeMinutes) ?? commuteRefusal(commute.afterMinutes)
+  const badMinute =
+    checkTravelMinutes(commute.beforeMinutes) ?? checkTravelMinutes(commute.afterMinutes)
   if (badMinute !== null) return { ok: false, reason: badMinute }
   return commit(board, day, (plan) => ({
     ...plan,
@@ -211,23 +211,14 @@ function rangeRefusal(range: MinuteRange): RefusalReason | null {
 }
 
 /**
- * The floor is asked before the step here, which is the opposite order to a
- * time, and for a reason. Every whole number under five is also off the
- * five-minute step, so a person who typed three minutes of commute is told
- * that a commute is five minutes or nothing rather than being told their
- * number is not a multiple of five. Both refusals leave the same two choices,
- * so the one that explains the rule is the one worth saying.
- */
-function commuteRefusal(minutes: number): RefusalReason | null {
-  if (minutes !== 0 && minutes < MIN_TRAVEL_MINUTES) return 'too-short'
-  return minuteRefusal(minutes)
-}
-
-/**
  * Whether a minute is a length a board can hold at all: not negative, and on
  * the five-minute typed step, so 1:40 is a time and 1:37 is not. Everything
  * else about a minute, including the day edges and the fifteen-minute floor,
  * belongs to `checkDayPlan`.
+ *
+ * A commute does not come through here. It is a length rather than a time, but
+ * it is the same rule as a task's travel, so both ask `checkTravelMinutes` in
+ * `schedule.ts` instead of keeping a copy of one rule in two places.
  */
 function minuteRefusal(minute: number): RefusalReason | null {
   if (minute < 0) return 'too-short'

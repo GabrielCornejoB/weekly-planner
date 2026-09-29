@@ -418,11 +418,28 @@ Two members were added to the vocabulary this task needed, both additions to the
 
 Also decided here for the later tasks: intervals are stored in **clock order** on every mutation, so a backup text reads the way the grid does; the day that changed is rebuilt down to fresh interval objects, while the other six days are shared; and `addWorkInterval` spends its id even when the change is refused, since the check does not depend on it.
 
-### 9. Goal mutations
+### 9. Goal mutations [done]
 
 Implement create and update for both kinds, delete, and default-travel propagation. Kind is fixed after create. Delete removes that goal's sessions and no others. Empty names, names over 40 characters, a count below 1, and a time quota below 15 minutes are refused. Default activity length is at least 15 minutes.
 
 Done when tests cover type lock, color and name living on the goal, custom session travel surviving a default-travel edit, non-custom session travel updating, and delete removing only that goal's sessions.
+
+Done in `src/domain/goals.ts` and `src/domain/goals.test.ts` (51 tests). Four exports: `createGoal`, `updateGoal`, `deleteGoal`, and `findGoal` (task 10 needs the lookup to place a session, since that is where a block's first length and travel come from). No `Result` code was added to the vocabulary: goals own six of the thirteen reasons the board already had words for, and a test gathers every reason a real call can produce and asserts the set is exactly those six, so neither a new reason nor a dead branch can slip in.
+
+A **draft is the whole goal, not a patch**, and it is a union on `kind` with the same discriminant the stored goal has. That is what makes "the kind cannot change" cheap to honour: `updateGoal` is handed a kind, and a draft whose kind does not match the goal it is editing is `kind-locked` rather than coerced. It also means a count goal cannot be handed minutes — that shape does not compile, proved with a throwaway file. Create and update both validate through one private `draftRefusal`, so the two doors cannot disagree about what a legal goal is; a table asserts all ten bad drafts are refused identically through both.
+
+The important structural point is what a goal edit does **not** touch. A name and a color live on the goal and are never copied onto a session, so "changing the name changes every block of this task" is true by construction instead of by a loop that has to remember to visit every session. Only default travel is copied, and only to the sessions whose `travelFollowsDefault` is still true. A name, color, quota, or default-length edit therefore rebuilds no session at all — not one object, and not the array either, which is what makes "a quota change only changes the numbers" checkable rather than merely intended.
+
+Four decisions are recorded in the module header and pinned by tests:
+
+- **Quotas have their own rule and their own reason.** A visit count is a whole number of at least one; a time budget is at least one shortest activity. Neither is asked about the five-minute typed step, because the plan states that step for clock positions and a quota is a target rather than a time. A default *activity length* is the exception: it stops being a target and becomes a block's real minutes on the grid, so it is held to the step and 1:40 is legal.
+- **A name is stored exactly as it was typed.** A name of nothing but spaces is refused as empty, since nobody meant to name a task that, but nothing is trimmed — the app refuses rather than repairs, and quietly editing a person's words is a repair. The 40-character limit is measured on the name that reaches the board, spaces included.
+- **Goals are appended and never sorted.** Priorities are out of scope in the product scope, so the order of the list is the order the person made them.
+- **A refused create mints no id.** The checks do not need one, so a refused change cannot spend the app's uuid source.
+
+One rule was lifted rather than copied. A commute and a task's default travel are the same rule from this plan — zero or at least five minutes, on the five-minute step, floor asked first — and `work.ts` already had it as a private function. Rather than let two modules hold one rule, `checkTravelMinutes` now lives in `schedule.ts` beside the other length rules, and both `setCommute` and the default-travel check call it. Task 8's pinned ordering test (three minutes is `too-short`, seven is `not-a-step`) still passes unchanged, and a goals test asserts the same order for a default travel, so the shared rule is covered from both sides.
+
+Twenty-five wrong implementations were probed against the real file and all twenty-five were caught, three of them only after they exposed a gap the tests had to close first: a name trimmed on the way in, a travel comparison that looked at the before side only, and a length limit measured after a trim. The order the four fields are reported in is pinned too, because a form can be wrong several ways at once and only one sentence is shown.
 
 ### 10. Session and one-off mutations
 
