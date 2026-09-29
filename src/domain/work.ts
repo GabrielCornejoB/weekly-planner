@@ -37,6 +37,7 @@ import type { CreateId } from '@/domain/board'
 import { checkDayPlan, checkMinute, checkTravelMinutes } from '@/domain/schedule'
 import { type MinuteRange } from '@/domain/time'
 import {
+  DAYS,
   type Board,
   type DayId,
   type DayPlan,
@@ -68,6 +69,29 @@ function commit(board: Board, day: DayId, candidate: (plan: DayPlan) => DayPlan)
     workIntervals: next.workIntervals.toSorted(byStartMinute).map(copyInterval),
   }
   return { ok: true, value: { ...board, days: { ...board.days, [day]: rebuilt } } }
+}
+
+/**
+ * The day a work interval is on, or `null` when it is not on this board.
+ *
+ * Every other block in the app carries its own day, so a caller that has a block
+ * id already has the day it is on. A work interval is the exception and always
+ * has been: which days carry work is the day editor's question, and the five
+ * mutations above take the day as an argument for exactly that reason. So the
+ * grid, which reports a work block as an id and nothing else, leaves somebody
+ * having to ask "which day is this on" — and that is a question about this
+ * module's own data, so it is answered here rather than by a caller walking
+ * seven day plans. `findGoal` and `findSession` exist for the same reason.
+ *
+ * `null` is a real answer rather than a corner case: the grid is where block ids
+ * come from, so a person can start a drag, be refused, and start again from a
+ * board that has since changed underneath them.
+ */
+export function findWorkDay(board: Board, id: string): DayId | null {
+  return (
+    DAYS.find((day) => board.days[day].workIntervals.some((interval) => interval.id === id)) ??
+    null
+  )
 }
 
 /**
@@ -136,6 +160,30 @@ export function resizeWorkInterval(
       ? replaceInterval(plan, id, minute, interval.endMinute)
       : replaceInterval(plan, id, interval.startMinute, minute),
   )
+}
+
+/**
+ * Move one end of an interval, wherever on the week it is.
+ *
+ * The same door as `resizeWorkInterval` with the lookup done here, and for the
+ * same reason: a grid resize arrives as a block id, an edge, and a minute, and
+ * there is no day in it to pass on. The day editor has its day already, so it
+ * calls the narrower function; the chart cannot, so it calls this one.
+ *
+ * An id that is not on the board is `missing-work` — the same reason, from the
+ * same private function, that the day editor's own resize gives. Refusing is
+ * also the honest reading: a work interval stays on its day, so a drag that
+ * carried it somewhere else was refused, and the block went back.
+ */
+export function resizeWorkIntervalOnAnyDay(
+  board: Board,
+  id: string,
+  edge: ResizeEdge,
+  minute: number,
+): Result<Board> {
+  const day = findWorkDay(board, id)
+  if (day === null) return missingWork()
+  return resizeWorkInterval(board, day, id, edge, minute)
 }
 
 /**

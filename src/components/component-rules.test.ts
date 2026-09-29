@@ -224,6 +224,7 @@ describe('what a component may not do', () => {
     'setSessionDone',
     'setSessionTravel',
     'updateGoal',
+    'updateOneOff',
   ]
 
   it('names no mutation', () => {

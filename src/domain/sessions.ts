@@ -44,6 +44,11 @@
  *   the number progress will later sum. A drag on the grid and a typed end in
  *   the editor are the same call, and the only difference between them is that a
  *   drag snaps to fifteen minutes while a field steps by five.
+ * - **A one-off's name and color are its own, and they are edited by their own
+ *   door.** A session's live on its task; a one-off has no task, so the only copy
+ *   of its name and color is on the block, and the product scope says the person
+ *   can change them. `updateOneOff` moves those two fields and nothing else, and
+ *   re-checks nothing: like the done mark, they occupy no time.
  * - **A resize never touches `done`.** The product scope says so for progress and
  *   it is worth saying here too: a block that was done stays done when its length
  *   changes, and its credit becomes the new length. Marking not done again is the
@@ -200,6 +205,47 @@ export function placeOneOff(
   const refusal = checkFootprintFits(board, day, oneOffFootprint(oneOff))
   if (refusal !== null) return { ok: false, reason: refusal }
   return { ok: true, value: { ...board, oneOffs: [...board.oneOffs, oneOff] } }
+}
+
+/**
+ * Change an event's name and its color, and nothing else.
+ *
+ * These are the two fields a one-off owns itself, and the two a session does
+ * not: a session's name and color live on its task, which is the reason renaming
+ * a task renames every block of it without anything visiting any of them. A one-off
+ * has no task, so the only copy of its name and color is on the block, and the
+ * product scope is explicit that the person can change them.
+ *
+ * **The activity length and the travel are not here.** Those are `resizeOneOff`
+ * and `setOneOffTravel`, and the editor's draft carries a length *and* the end of
+ * the activity, because the end is measured from the travel that is on the block
+ * at the time. A third door for the same two fields would be a second opinion
+ * about which of them wins.
+ *
+ * **No minute is asked about, so nothing is re-checked.** A name and a color
+ * occupy no time, exactly like the done mark, and this is the same reasoning
+ * `setSessionDone` records: the person is saying something about the block rather
+ * than putting it somewhere, and the geometry gets no vote. It also means a
+ * rename works on a board that has drifted, rather than being refused against a
+ * conflict it did not cause.
+ */
+export function updateOneOff(
+  board: Board,
+  id: string,
+  change: Pick<OneOffDraft, 'name' | 'colorId'>,
+): Result<Board> {
+  const badName = checkName(change.name)
+  if (badName !== null) return { ok: false, reason: badName }
+  if (findOneOff(board, id) === null) return missingBlock()
+  return {
+    ok: true,
+    value: {
+      ...board,
+      oneOffs: board.oneOffs.map((oneOff) =>
+        oneOff.id === id ? { ...oneOff, name: change.name, colorId: change.colorId } : oneOff,
+      ),
+    },
+  }
 }
 
 /**

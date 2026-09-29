@@ -1,5 +1,7 @@
+import { BoardOrchestrator } from '@/orchestrators/BoardOrchestrator'
+
 function App() {
-  return null
+  return <BoardOrchestrator />
 }
 
 export default App

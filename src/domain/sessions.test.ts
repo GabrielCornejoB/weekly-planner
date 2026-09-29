@@ -16,6 +16,7 @@ import {
   setOneOffTravel,
   setSessionDone,
   setSessionTravel,
+  updateOneOff,
   type OneOffDraft,
 } from '@/domain/sessions'
 import { dayOccupancy, oneOffFootprint, sessionFootprint, type Footprint } from '@/domain/schedule'
@@ -763,6 +764,76 @@ describe('the one-off mutations', () => {
   })
 })
 
+/**
+ * The two fields a one-off owns itself, and the one a session does not.
+ *
+ * A session's name and color live on its task, which is why renaming a task
+ * renames every block of it without anything visiting any of them. A one-off has
+ * no task, so the only copy of its name and color is on the block — and the
+ * product scope is explicit that the person can change them. Task 10's list of
+ * one-off mutations left this out, and the editor that renders the two fields is
+ * what found it.
+ */
+describe('updateOneOff', () => {
+  it('renames an event and recolours it', () => {
+    const after = ok(updateOneOff(boardWithBlocks(), 'o1', { name: 'Physio', colorId: 'violet' }))
+    expect(oneOffAt(after, 'o1')).toMatchObject({ name: 'Physio', colorId: 'violet' })
+  })
+
+  it('changes nothing else about the event, minute or mark included', () => {
+    const before = boardWithBlocks()
+    const one = oneOffAt(before, 'o1')
+    const after = oneOffAt(ok(updateOneOff(before, 'o1', { name: 'Physio', colorId: 'violet' })), 'o1')
+    expect(after).toEqual({ ...one, name: 'Physio', colorId: 'violet' })
+  })
+
+  it('leaves every other event alone, and keeps their order', () => {
+    const placed = boardWithOneOff()
+    const after = ok(updateOneOff(placed, 'id-1', { name: 'Barber again', colorId: 'teal' }))
+    expect(after.oneOffs.map((one) => one.id)).toEqual(['o1', 'id-1'])
+    expect(oneOffAt(after, 'o1').name).toBe('Dentist')
+  })
+
+  it('re-checks nothing, because a name and a color occupy no time', () => {
+    // The same reasoning as a done mark, and the same consequence: a rename is
+    // not refused against a conflict it did not cause. This board's dentist sits
+    // at 18:00 on a day whose work runs to 17:00, so it fits — and the board is
+    // broken on purpose to show that the name is not asked about the geometry.
+    const broken: Board = {
+      ...boardWithBlocks(),
+      oneOffs: [dentist(), { ...dentist(), id: 'o2', startMinute: 1080 }],
+    }
+    const after = ok(updateOneOff(broken, 'o1', { name: 'Physio', colorId: 'violet' }))
+    expect(oneOffAt(after, 'o1').name).toBe('Physio')
+    // Both still overlap each other: nothing was moved to make room.
+    expect(stretchesOf(oneOffFootprint(oneOffAt(after, 'o1')))).toEqual(['activity 18:00–19:00'])
+    expect(stretchesOf(oneOffFootprint(oneOffAt(after, 'o2')))).toEqual(['activity 18:00–19:00'])
+  })
+
+  it('refuses an empty name and a name over the limit, and changes nothing', () => {
+    const board = boardWithBlocks()
+    expect([
+      refused(updateOneOff(board, 'o1', { name: '  ', colorId: 'rose' })),
+      refused(updateOneOff(board, 'o1', { name: 'x'.repeat(MAX_NAME_LENGTH + 1), colorId: 'rose' })),
+    ]).toEqual(['empty-name', 'name-too-long'])
+    expect(board.oneOffs[0].name).toBe('Dentist')
+  })
+
+  it('refuses an event that is not on the board, with the one reason a block needs', () => {
+    expect(refused(updateOneOff(boardWithBlocks(), 'nope', { name: 'Physio', colorId: 'violet' }))).toBe(
+      'missing-block',
+    )
+  })
+
+  it('never touches the sessions, however it is called', () => {
+    const board = boardWithBlocks()
+    const after = ok(updateOneOff(board, 'o1', { name: 'Physio', colorId: 'violet' }))
+    expect(after.sessions).toBe(board.sessions)
+    // A session's id is not a one-off's id, so naming one changes nothing.
+    expect(refused(updateOneOff(board, 's1', { name: 'Physio', colorId: 'violet' }))).toBe('missing-block')
+  })
+})
+
 describe('the reasons this module can produce', () => {
   it('is exactly the eight the plan can be asked for here', () => {
     const board = boardWithBlocks()
@@ -788,6 +859,7 @@ describe('the reasons this module can produce', () => {
       refused(setOneOffTravel(placed, 'id-1', { beforeMinutes: 3, afterMinutes: 0 })),
       refused(setOneOffTravel(placed, 'id-1', { beforeMinutes: 0, afterMinutes: 7 })),
       refused(moveOneOff(placed, 'nope', 'monday', 1140)),
+      refused(updateOneOff(board, 'nope', { name: 'Physio', colorId: 'violet' })),
     ]
     // Neither a reason invented here nor a branch left unreachable: the count is
     // asserted as well as the set, so one case added to the union fails this too.
@@ -801,7 +873,7 @@ describe('the reasons this module can produce', () => {
       'overlaps',
       'too-short',
     ])
-    expect(reasons.length).toBe(12)
+    expect(reasons.length).toBe(13)
   })
 })
 
@@ -819,6 +891,7 @@ describe('immutability', () => {
     ['mark a one-off done', (b) => setOneOffDone(b, 'o1', true)],
     ['delete a session', (b) => deleteSession(b, 's1')],
     ['delete a one-off', (b) => deleteOneOff(b, 'o1')],
+    ['rename a one-off', (b) => updateOneOff(b, 'o1', { name: 'Physio', colorId: 'violet' })],
   ]
 
   it('never writes to the board it was given, for every change', () => {

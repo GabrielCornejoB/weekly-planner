@@ -21,9 +21,11 @@ import {
 } from '@/domain/types'
 import {
   addWorkInterval,
+  findWorkDay,
   moveWorkInterval,
   removeWorkInterval,
   resizeWorkInterval,
+  resizeWorkIntervalOnAnyDay,
   setCommute,
 } from '@/domain/work'
 
@@ -777,6 +779,107 @@ describe('the board a change is made on', () => {
     const emptied = ok(removeWorkInterval(board, 'monday', afternoon(board)))
     expect(later.days.monday.workIntervals).toHaveLength(2)
     expect(emptied.days.monday.workIntervals).toHaveLength(1)
+    expect(board).toEqual(atBirth)
+  })
+})
+
+/**
+ * The two readers task 18 needed, and why they are here rather than in the
+ * orchestrator.
+ *
+ * A grid reports a work block as an id and nothing else, because work does not
+ * change days and every one of the five mutations above takes the day as an
+ * argument. So somebody has to answer "which day is this on", and the answer
+ * comes out of this module's own data. `findGoal`, `findSession`, and
+ * `findOneOff` were each exported for the same reason one task earlier.
+ */
+describe('findWorkDay', () => {
+  it('names the day an interval is on', () => {
+    // The preset spends its ids in day order: Monday id-1 and id-2, Tuesday
+    // id-3 and id-4, and so on through to Friday.
+    expect(findWorkDay(preset(), 'id-1')).toBe('monday')
+    expect(findWorkDay(preset(), 'id-4')).toBe('tuesday')
+  })
+
+  it('finds work on a weekend day, which the preset leaves empty', () => {
+    // One id source for the whole board, so the new interval cannot be handed an
+    // id Monday already has and the lookup below has one unambiguous answer.
+    const createId = countingIds()
+    const board = ok(
+      addWorkInterval(
+        createDefaultBoard(createId),
+        'saturday',
+        { startMinute: 600, endMinute: 660 },
+        createId,
+      ),
+    )
+    expect(findWorkDay(board, board.days.saturday.workIntervals[0].id)).toBe('saturday')
+  })
+
+  it('has no day to give for an id that is not on this board', () => {
+    expect(findWorkDay(preset(), 'not-on-this-board')).toBeNull()
+  })
+
+  it('is about work intervals only, even when a block of another kind shares the id', () => {
+    // The same raw id may name a session and a work interval on one board, which
+    // is why a view key carries the kind. A lookup for work must not be fooled by
+    // it, and must not walk off into a day that holds no work at all.
+    const board: Board = {
+      ...preset(),
+      sessions: [
+        {
+          id: 'id-1',
+          goalId: 'some-goal',
+          day: 'friday',
+          startMinute: 1080,
+          activityMinutes: 60,
+          travel: { beforeMinutes: 0, afterMinutes: 0 },
+          travelFollowsDefault: true,
+          done: false,
+        },
+      ],
+    }
+    expect(findWorkDay(board, 'id-1')).toBe('monday')
+  })
+})
+
+describe('resizeWorkIntervalOnAnyDay', () => {
+  it('resizes an interval without being told which day it is on', () => {
+    const board = preset()
+    const after = ok(resizeWorkIntervalOnAnyDay(board, 'id-2', 'end', 900))
+    expect(workOf(after.days.monday)).toEqual(['8:00–12:00', '14:00–15:00'])
+    expect(after.days.tuesday.workIntervals).toEqual(board.days.tuesday.workIntervals)
+  })
+
+  it('resizes by the start edge as well as the end', () => {
+    const after = ok(resizeWorkIntervalOnAnyDay(preset(), 'id-1', 'start', 540))
+    expect(workOf(after.days.monday)).toEqual(['9:00–12:00', '14:00–17:00'])
+  })
+
+  it('refuses a stale id with the reason the day editor’s resize gives', () => {
+    // The same sentence for the same fact: the block is not here. An orchestrator
+    // that had to invent this reason would be a second place deciding what a
+    // missing block means.
+    expect(refused(resizeWorkIntervalOnAnyDay(preset(), 'not-on-this-board', 'end', 900))).toBe(
+      'missing-work',
+    )
+  })
+
+  it('refuses the day’s rules exactly as the day editor’s resize does', () => {
+    const board = preset()
+    // 10:02 is off the five-minute typed step, 5:00 is before the day, and
+    // reaching 15:00 crosses into the afternoon interval that starts at 14:00.
+    expect(refused(resizeWorkIntervalOnAnyDay(board, 'id-1', 'end', 602))).toBe('not-a-step')
+    expect(refused(resizeWorkIntervalOnAnyDay(board, 'id-1', 'start', 300))).toBe('outside-day')
+    expect(refused(resizeWorkIntervalOnAnyDay(board, 'id-1', 'end', 900))).toBe('overlaps')
+  })
+
+  it('leaves the board it was given alone, refused or not', () => {
+    const board = preset()
+    const atBirth = structuredClone(board)
+    ok(resizeWorkIntervalOnAnyDay(board, 'id-2', 'end', 900))
+    resizeWorkIntervalOnAnyDay(board, 'id-1', 'end', 900)
+    resizeWorkIntervalOnAnyDay(board, 'not-on-this-board', 'end', 900)
     expect(board).toEqual(atBirth)
   })
 })

@@ -26,7 +26,12 @@
  *   own three fields.
  * - **Deleting asks nothing and marking done is one tap**, exactly as it is for
  *   a block of a task. The product reserves confirmation for a whole task and
- *   the whole board, and a single event is neither.
+ *   the whole board, and a single event is neither. Both buttons appear only once
+ *   the event exists, though: a new event has nothing to mark and nothing to
+ *   delete, and offering either would be two controls that do nothing. That is
+ *   why the props are still required — a form is handed both of them however it
+ *   is opened, and it is the form, which knows whether there is an event yet,
+ *   that decides whether there is anything for them to do.
  */
 
 import { useState } from 'react'
@@ -126,22 +131,24 @@ export function OneOffForm({
           onChange={(change) => setPlacement((held) => ({ ...held, ...change }))}
         />
 
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => onSetDone(!(oneOff?.done ?? false))}
-            className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm text-stone-700"
-          >
-            {oneOff?.done === true ? 'Mark not done' : 'Mark done'}
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm text-stone-700"
-          >
-            Delete event
-          </button>
-        </div>
+        {oneOff !== null && (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => onSetDone(!oneOff.done)}
+              className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm text-stone-700"
+            >
+              {oneOff.done ? 'Mark not done' : 'Mark done'}
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm text-stone-700"
+            >
+              Delete event
+            </button>
+          </div>
+        )}
 
         <div className="mt-2 flex flex-wrap justify-end gap-2">
           <button
