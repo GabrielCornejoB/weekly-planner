@@ -752,11 +752,25 @@ A throwaway `react-dom/server` probe (written, run, and deleted in this session;
 - **The chart's height is now a share of the viewport, so the day column's own 896 pixels is the thing to revisit if the chart ever feels too sparse or too dense.** It is a layout constant, not a rule, and the product's "a fifteen-minute block looks short" is the only thing arguing about it.
 - **The list's `lg:max-h-[70dvh]` matches the chart's `h-[70dvh]` by hand.** They are two files and two constants that must agree so the two columns end level; nothing checks it, because there is no place a class name is compared to another class name in this project.
 
-### 20. Project readme
+### 20. Project readme [done]
 
 Replace the one-line README with how to install, run, test, and build, plus links to the two docs. Do not copy the product rules into the README.
 
 Done when a new checkout can follow the README without reading this plan.
+
+Done in `README.md` only. No source file changed, and `npm test` is still 612 tests.
+
+**The README is four things and none of them is the product.** What the app is, in three lines; the two documents to read instead (`docs/product-scope.md` for the behaviour, this file for the decisions and the task list), linked at the top with a sentence saying neither is repeated here; the four commands and the Node version; and the conventions a new edit needs to know about. The plan's "do not copy the product rules" is why the conventions list is about *shape* and not about *behaviour* — minutes from midnight, pure functions, dumb components, sentences handed down, Tailwind classes spelled out, tests in Node with no jsdom — and why the one product-shaped line in the whole file is the sentence saying the rest is elsewhere.
+
+**The done-when was checked by doing it rather than by reading it.** The repository was cloned to a scratch directory, this README copied in, and the file followed word for word: `npm ci` (0 vulnerabilities), `npm test` (16 files, 612 passed), `npm run lint` (0 warnings, 0 errors over 49 files), `npm run build` (a minified `dist/`), `npm run dev` (HTTP 200), and `npm run preview` against the build (HTTP 200). Nothing in the README needed the plan to be understood or to be acted on.
+
+**Two claims were checked against the installed tree rather than written from memory.** The Node requirement is Vite 8.3.1's own `engines` field, read rather than quoted (`^20.19.0 || >=22.12.0`), and the `file://` warning now says why: the built `dist/index.html` references `/assets/…` absolutely, so it is a served page and not a portable file. The one thing the README does *not* state is a test count, because a number in a README is stale the moment the suite changes and nothing here would notice.
+
+**A rule this project does not have is worth naming.** Every other task's work is proved by calling functions, and this one is a Markdown file, so a test asserting its contents would be a test of prose. Instead the check is the scratch clone above, which is why the commands table was written from `package.json` and the file tree from the tree itself.
+
+### Notes for later tasks
+
+- **Task 21 has nothing from this task to clean up**: the README is not code, references no export, and no test was added. The two documents it links are the two this plan already names.
 
 ### 21. Finish line
 
