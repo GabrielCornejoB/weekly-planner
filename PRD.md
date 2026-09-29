@@ -351,7 +351,7 @@ Create the Vite React TypeScript app in this repo without removing `docs/`. Add 
 
 Done when: the app builds, no SCSS and no Tailwind config file exist, and `docs/product-scope.md` is still there.
 
-### 2. Lock the type and test setup
+### 2. Lock the type and test setup [done]
 
 Turn on the template strict options if any were relaxed. Ban explicit `any` in ESLint. Add Vitest in Node mode and a `test` script that exits. Add one temporary test that proves the runner executes a `.test.ts` file, then delete it in task 3 if it no longer applies.
 
