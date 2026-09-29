@@ -63,6 +63,10 @@ src/
   components/
     Modal.tsx
     ConfirmDialog.tsx
+    RefusalBanner.tsx
+    ColorSwatches.tsx
+    DurationInput.tsx
+    DaySelect.tsx
     WeekGrid.tsx
     TaskList.tsx
     GoalForm.tsx
@@ -70,7 +74,7 @@ src/
     DayEditor.tsx
     SessionEditor.tsx
     BackupPanel.tsx
-    RefusalBanner.tsx
+    component-rules.test.ts   checks the rules this folder lives by, from source
 ```
 
 Tests sit next to the module they cover: `time.test.ts` beside `time.ts`.
@@ -80,6 +84,8 @@ Tests sit next to the module they cover: `time.test.ts` beside `time.ts`.
 ### Who may import what
 
 Dumb components may import types, `colors/palette.ts`, and pure display helpers from `domain/time.ts`. They may not import mutation modules, `schedule.ts`, `progress.ts`, or persistence.
+
+`refusal.ts` and `board.ts` are on the forbidden list too, for the same reason: the sentences are handed down ready-made rather than composed, and a component must never build or reset a board. `view.ts` is allowed, for types only, since `BlockTarget` and `DAY_OPTIONS` exist to be carried out to the edge. Task 16 pins all of this as a test over the components' own source, so a component added later cannot reach a rule by accident.
 
 The orchestrator imports domain and persistence. It passes ready-made view models and strings down. It does not calculate overlap, quotas, or footprints in the component body.
 
@@ -598,11 +604,27 @@ The round trip is a week the app really built through the real mutations (two ta
 
 **Eighteen wrong implementations were probed against the real file and all eighteen are caught on the first pass** — the compact export form, an export dropping the version, an export dropping `travelFollowsDefault`, a cast instead of the guard, `JSON.parse` throwing out, a leaked reason, a repair instead of a refusal, a guard that only asks whether the text is an object, each of the four checks removed in turn, a sweep that read touching as a shared minute, a block excluded by the wrong kind and then by task instead of by id, and a round trip that handed back an emptied board. Every probe was reverted and the file diffed back identical against a backup.
 
-### 16. Dumb chrome
+### 16. Dumb chrome [done]
 
 Build `Modal`, `ConfirmDialog`, `RefusalBanner`, and the small fields those forms need: color swatches, duration inputs, day select. Props are explicit interfaces. Events are the callbacks in the table above. No domain imports except types and display helpers.
 
 Done when these components compile, contain no quota or overlap logic, and `Modal` closes only by calling `onClose`.
+
+Done in `src/components/` — `Modal.tsx`, `ConfirmDialog.tsx`, `RefusalBanner.tsx`, `ColorSwatches.tsx`, `DurationInput.tsx`, `DaySelect.tsx` — plus `component-rules.test.ts` (7 tests). The three fields are the plan's "small fields those forms need", and they are the pieces task 17's four forms are built out of, so they were built to be handed a value and emit a change and nothing else. Each component imports exactly one thing: `Modal` imports React, `ColorSwatches` imports `@/colors/palette`, `DurationInput` and `DaySelect` import types, and `ConfirmDialog` imports `Modal`.
+
+`Modal` holds **no state at all**, which is the whole of how it closes only by calling `onClose`. There is no `open` prop to honor and no `setOpen` to call, so it cannot decide to close itself, cannot reopen itself, and cannot disagree with the orchestrator about whether a dialog is showing. Escape is listened for on the document rather than on the panel, because a key handler on the panel only fires while something inside it has focus, which is not guaranteed the moment a dialog appears; the listener is removed on cleanup so a closed dialog leaves nothing behind to eat a keystroke. The panel takes focus when it opens, without moving the scroll, because a dialog that leaves focus on the page behind it is read aloud as nothing at all — and **a tap on the dim area deliberately does not close**, since on a phone a stray thumb lands there easily and every dialog in this app holds a form somebody has already typed half of.
+
+Two smaller decisions are recorded in the file headers. `ConfirmDialog` cannot tell whether it is a reset, a delete, or an import — title, message, and both labels are props — so the three confirmations cannot drift into sounding like three apps; and it routes Escape *and* the modal's Close button through `onCancel`, because the answer that destroys nothing is the answer a stray keystroke should give. The filled button is the one that goes ahead and it sits on the far side of the row, so the thumb that lands on the edge of a dialog lands on the safe answer; nothing in it is red, since a hue on this board means a task. `RefusalBanner` shows a sentence it was given and is stone rather than a palette color, because a color on screen here is a task the person would then look for on the grid; `role="status"` is polite, and the banner stays until it is dismissed or the next successful change replaces it, since a refusal that vanished on a timer would be a refusal nobody could act on.
+
+**The three fields each solve one question the domain cannot answer for them.** `ColorSwatches` takes its background from `PALETTE`, so nothing in the file can assemble a class name out of a hue and a shade; it renders twelve buttons rather than a picker, because a person choosing between twelve known colors should see all twelve and a dropdown hides eleven behind a tap; the selected swatch is marked with both `aria-pressed` and a ring, since the product is explicit that color is never the only thing distinguishing two things. `DaySelect` takes its seven options as a prop and declares the shape of an option itself rather than importing it — a dumb component does not get to know where its data came from, and the orchestrator passing its options to the prop is what makes the compiler check the two shapes against each other. It looks a choice up among the options it offered rather than trusting the browser's string, which is what lets it report a `DayId` with no assertion anywhere.
+
+**`DurationInput` is the one field with any machinery in it, and it has state for its own text and nothing else.** A controlled number box cannot be emptied — clearing it puts a number straight back and the next digit appends to that — so both boxes hold text locally, and the boxes are refilled from the props *only when the props actually move*, which is another block in the same editor, an imported board, or a change made elsewhere. They are deliberately **not** refilled when an edit was refused: a refusal leaves the prop exactly where it was, and wiping the box would throw away the number the person had just fixed in favour of the number that was already wrong. An empty or half-typed box reports nothing at all rather than reporting a zero, so the domain is never asked about a length nobody finished typing. The minutes box steps by five and the hours box does not, and that is arithmetic rather than a style choice: an hour is sixty minutes, so a whole number of hours plus a multiple of five is *always* a multiple of five, which means whatever this field reports is already on the step the domain asks about and the two rules cannot contradict each other. The minutes box is left uncapped, because `100` typed there is a fair way of writing one hour and forty minutes and is read as exactly that.
+
+**The rules this folder lives by are tested against the components' own source rather than by rendering them**, in `src/components/component-rules.test.ts` — the plan forbids rendering components and there is no jsdom here, so a `?raw` glob reads the files as text and never executes them. Three things are pinned: no component imports a rule module (the eight that own a rule, including `refusal.ts` because the sentences are handed down ready-made and `board.ts` because a component must never build or reset a board), every component's declared callbacks are exactly the ones the plan's events table names, and `Modal` names no callback but `onClose`, holds no state, and has exactly one tap handler. The glob is the whole folder rather than a list, so a component added in task 17 is covered from the moment it exists.
+
+**One test was wrong on its first pass and one probe exposed a false negative, both worth recording.** The callback reader originally matched every `on[A-Z]` name in a file, which counted React's own `onClick` and `onChange` as though the app had asked for them; it now reads the callbacks each component *declares*, which is the thing the events table is about — a component cannot be handed anything it did not ask for. And the "a tap beside the panel does not close" check originally found the backdrop by its class names, so it passed *vacuously* the moment that element was formatted across lines: a test written about source text has to fail loudly when it cannot find what it is looking for, and it now pins the number of tap handlers in the file instead. Probing the real files caught all four guards — a component importing `refusal.ts`, `Modal` growing an `onConfirm` and some state, a backdrop handler reformatted across lines, and a seventh component nobody had declared in the events table. Every probe was reverted and the files diffed back against a backup.
+
+A throwaway render probe (`react-dom/server`, deleted immediately) confirmed all six render without throwing, that the modal carries `role="dialog"` and `aria-modal`, that there are twelve swatches with the chosen one pressed, that 300 minutes reads `5` and `0`, and that the day select offers its options in the order it was given. Its one failure was the probe's own arithmetic, not the component's. **Not verified: the interactive behavior** — typing into the duration boxes, dragging a swatch, pressing Escape — which needs a browser this session has none of, so it is left to task 18's orchestrator and task 19's layout to exercise on the dev server.
 
 ### 17. Dumb planning surfaces
 
