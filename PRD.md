@@ -385,11 +385,15 @@ Done when a test shows the first unused id is chosen, a used id is skipped, and 
 
 Done in `src/colors/palette.ts` and `src/colors/palette.test.ts` (16 tests). The twelve ids were already fixed by task 3, so this task adds the map, the swatch order, and `nextColorId`. Three roles per hue, one shade each: `solid` is the 600 step, `soft` the 200 step, `text` the 900 step. The 600 step is one darker than the 500 this plan offers as its example, because the name on a block has to stay readable: white on the 500 step measures under 4.5:1 for seven of the twelve hues, while at the 600 step the weakest, orange, is 4.6:1. `PALETTE` is typed `Record<ColorId, ColorClasses>`, so the union and the map cannot drift. The test imports its own module with `?raw` and asserts each shipped class is spelled out in the source, which is the only place a Tailwind interpolation actually shows up.
 
-### 7. Footprints and placement checks
+### 7. Footprints and placement checks [done]
 
 Implement occupancy for work, commute, session travel, session activity, and one-offs. Implement the check that a proposed footprint fits in the day and does not overlap anything already there.
 
 Done when tests cover: morning commute ends at the first work start and evening commute starts at the last work end; a middle work fragment gets no commute; a day with no work and a non-zero commute is refused; travel is occupied time but is not activity length; a block that would cross work is refused; a block that fits in 12:00–14:00 is accepted; a block ending at 22:00 is accepted; touching work intervals are accepted; overlapping work intervals are refused.
+
+Done in `src/domain/schedule.ts` and `src/domain/schedule.test.ts` (68 tests). One type carries the whole idea: `OccupiedStretch` is a union on `role`, so a commute cannot claim a `target` (it hangs off the day) and a travel stretch cannot name a work interval. A `Footprint` is just the stretches one thing takes, contiguous, so `footprintRange` is the stretch that has to fit. Three checks answer three questions and compose: `checkFootprintFits` (in the day, inside one free stretch), `checkCommute` (the one rule occupancy cannot see: no work, no commute), and `checkDayPlan` (a whole proposed day for task 8's mutations, which compares work against work *inside the plan* rather than against the day already stored — that is what lets a morning interval move from 8:00–12:00 to 10:00–12:00). Minimum activity and work lengths are deliberately not checked here, since `MIN_ACTIVITY_MINUTES` and `MIN_WORK_MINUTES` differ and belong to the mutation that knows which kind of block it is placing.
+
+`BlockTarget` is declared in `schedule.ts`, not in `types.ts`, because it is not board vocabulary — nothing on the board stores it — and because this is where a stretch learns what holds it. Task 12's `view.ts` imports it for `GridBlockView.target`.
 
 ### 8. Work and commute mutations
 
