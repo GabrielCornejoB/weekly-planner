@@ -377,11 +377,13 @@ Done when a test builds the preset with a fake id function and checks those minu
 
 Done in `src/domain/board.ts` and `src/domain/board.test.ts` (16 tests). `CreateId` is exported here so the mutations in tasks 8–15 share one id-source type. The seven days are written out literally rather than looped over `DAYS`, so a new day in the union fails the build instead of producing a day with no plan. `resetBoard(createId)` takes no board on purpose: reset discards the whole document, so the caller replaces its state with the result.
 
-### 6. Palette
+### 6. Palette [done]
 
 Add the twelve `ColorId` values and a map of complete Tailwind class strings for the solid shade, the soft shade, and readable text. Implement `nextColorId`.
 
 Done when a test shows the first unused id is chosen, a used id is skipped, and the map values contain no interpolated class names.
+
+Done in `src/colors/palette.ts` and `src/colors/palette.test.ts` (16 tests). The twelve ids were already fixed by task 3, so this task adds the map, the swatch order, and `nextColorId`. Three roles per hue, one shade each: `solid` is the 600 step, `soft` the 200 step, `text` the 900 step. The 600 step is one darker than the 500 this plan offers as its example, because the name on a block has to stay readable: white on the 500 step measures under 4.5:1 for seven of the twelve hues, while at the 600 step the weakest, orange, is 4.6:1. `PALETTE` is typed `Record<ColorId, ColorClasses>`, so the union and the map cannot drift. The test imports its own module with `?raw` and asserts each shipped class is spelled out in the source, which is the only place a Tailwind interpolation actually shows up.
 
 ### 7. Footprints and placement checks
 
