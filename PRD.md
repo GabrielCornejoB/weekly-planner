@@ -52,7 +52,7 @@ src/
     sessions.ts                sessions and one-offs
     progress.ts                quotas and the sentences in the list
     view.ts                    grid and list view models
-    refusal.ts                 reason codes and sentences
+    refusal.ts                 sentences for the reason codes in types.ts
   persistence/
     storage.ts                 localStorage load and save
     transfer.ts                export text, import validation
@@ -357,7 +357,7 @@ Turn on the template strict options if any were relaxed. Ban explicit `any` in E
 
 Done when: `npm test` and `npm run lint` exit 0, and a file containing `: any` fails lint.
 
-### 3. Define the board types
+### 3. Define the board types [done]
 
 Add `domain/types.ts` with the interfaces, unions, and constants in this plan. Export `DAYS` and the minute constants from one module so the UI and the rules cannot drift.
 
