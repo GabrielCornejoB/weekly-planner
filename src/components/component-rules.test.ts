@@ -169,6 +169,82 @@ describe('what a component may emit', () => {
  * which is the failure the split exists to prevent.
  */
 /**
+ * Every element a finger can press, as its own complete opening tag.
+ *
+ * Only the four real controls. The chart's blocks are `div`s that answer a touch,
+ * and the drop guide is a `div` that must never answer one, so a sweep over
+ * everything pressable-looking would have to make a judgement this file is not in
+ * a position to make. What is checked instead is the other half of the phone rule:
+ * a control that is a real control is at least a thumb across.
+ *
+ * This walks the tag by hand rather than matching `<button[^>]*>`, and the reason
+ * is a bug this file's own probing found. An event handler contains its own `>`:
+ * `onClick={() => onDayHeaderTap(day.day)}` ends the naive match in the middle of
+ * the arrow, so the tag came back truncated at `onClick={() =>` with no
+ * `className` in it at all — and a control whose classes are never read is a
+ * control that cannot fail this check, which is worse than not having the check.
+ * The walker tracks quotes and braces so the tag ends where the tag ends.
+ */
+function controlsOf(source: string): string[] {
+  const tags: string[] = []
+  const opener = /<(?:button|input|select|textarea)\b/g
+  for (let at = opener.exec(source); at !== null; at = opener.exec(source)) {
+    const tag = readTag(source, at.index)
+    if (tag !== null) tags.push(tag)
+  }
+  return tags
+}
+
+/** One opening tag, from its `<` to the `>` that actually closes it. */
+function readTag(source: string, from: number): string | null {
+  let quote: string | null = null
+  let braces = 0
+  for (let index = from; index < source.length; index += 1) {
+    const character = source[index]
+    if (quote !== null) {
+      if (character === quote) quote = null
+      continue
+    }
+    if (character === '"' || character === "'" || character === '`') {
+      quote = character
+      continue
+    }
+    if (character === '{') braces += 1
+    else if (character === '}') braces -= 1
+    else if (character === '>' && braces === 0) return source.slice(from, index + 1)
+  }
+  return null
+}
+
+/**
+ * The class strings one element wears, following the file's shared constants.
+ *
+ * The second half is the reason this is a function at all: a control's size is
+ * usually written once as `const ACTION = 'min-h-11 …'` and named by nine
+ * buttons, so reading the inline class alone would find nine controls with no
+ * size and nine shared constants carrying the size, and check neither. Both
+ * spellings are followed — a bare `className={ACTION}` and an interpolated
+ * `` className={`${ACTION} …`} `` — because the second version of the first probe
+ * was caught only after this was widened: a `className={ADD}` is not an
+ * interpolation, and a check that only reads `${…}` sees no size on it.
+ */
+function classesOn(element: string, constants: Map<string, string>): string[] {
+  const written = [...element.matchAll(/className="([^"]*)"/g)].map((match) => match[1])
+  // Everything inside `className={ … }`, which is where the two other spellings
+  // live: a bare constant (`{ADD}`) and a template that builds a string
+  // (`` {`h-11 … ${PALETTE[id].solid}`} ``). Reading only the quoted form is what
+  // let a probe through that shrank a colour swatch from a thumb to twenty-four
+  // pixels: a swatch's class is a template, and a check that reads templates sees
+  // nothing at all.
+  const expression = element.match(/className=\{([\s\S]*?)\}\s*(?:\/|>)/)
+  if (expression === null) return written
+  const named = [...expression[1].matchAll(/\b([A-Z][A-Z_0-9]*)\b/g)]
+    .map((match) => constants.get(match[1]))
+    .filter((value): value is string => value !== undefined)
+  return [...written, ...named, expression[1]]
+}
+
+/**
  * An arbitrary-value class with something interpolated inside its brackets.
  *
  * Written with `\x60` and an escaped `]` on purpose. A backtick cannot go
@@ -290,6 +366,189 @@ describe('what a component may not do', () => {
     const panel = sourceOf('BackupPanel.tsx')
     expect(panel).not.toMatch(/\bJSON\./)
     expect(panel).not.toMatch(/\bparse\b/i)
+  })
+})
+
+/**
+ * The rules the phone lives by.
+ *
+ * The plan's done-when for this task is that the default styles target a phone and
+ * that no desktop-only affordance is the only way to do anything. Neither is a fact
+ * about the JavaScript, and neither can be settled by rendering: this project has
+ * no jsdom and the plan forbids rendering components in tests. So they are checked
+ * the way this folder's other rules are — by reading what the files say — and each
+ * one is chosen because the *absence* of it is a specific, describable failure.
+ *
+ * These are checks on the class names rather than on how they look, which has a
+ * limit worth stating: they say a class was written, not that the browser honoured
+ * it. The one way that goes wrong silently is a class Tailwind never emits, and the
+ * assembled-class check above is the guard for the only way this project has of
+ * causing that by accident.
+ */
+describe('the phone', () => {
+  /**
+   * The chart is the thing that scrolls, not the page.
+   *
+   * This is the load-bearing rule of the whole layout and it is easy to get
+   * subtly wrong. A scroll box with no height bound is not a scroll box: it grows
+   * to fit the day, the *page* scrolls instead, and the sticky day headers go up
+   * with the page — so the product's "day headers stay visible while the day
+   * scrolls" is silently false, and it looks fine until you notice the headers are
+   * not there. So the box is asked for both halves: a height that is a share of
+   * the viewport, and the overflow that makes it scroll.
+   */
+  it('bounds the chart to the screen so the day scrolls inside it', () => {
+    const source = sourceOf('WeekGrid.tsx')
+    // The height is a share of the viewport, not a count of pixels: a fixed height
+    // is either a wasted screen on a tall phone or a clipped chart on a short one.
+    expect(source).toMatch(/h-\[\d+dvh\]/)
+    expect(source).toMatch(/overflow-auto/)
+    // Both on the same class string, which is the part that is actually true of
+    // the rendered box. Read as the file's class constants, one per box.
+    const boxes = [...source.matchAll(/const \w+ = '([^']*)'/g)].map((match) => match[1])
+    const scrollBox = boxes.filter((box) => box.includes('overflow-auto'))
+    expect(scrollBox).toHaveLength(1)
+    expect(scrollBox[0]).toMatch(/h-\[\d+dvh\]/)
+  })
+
+  /**
+   * The day headers stay put, and the hours stay put the other way.
+   *
+   * The chart scrolls in two directions on a phone: the day up and down, the week
+   * sideways. Both of those have something that must not move with them, and both
+   * are a `sticky` with nothing behind it. A missing one is not a subtle fault —
+   * it is a week whose Friday has no times on it, or a day whose names have
+   * scrolled off the top — and neither shows up in a build or a test.
+   *
+   * The background is asked about in the same breath, because a sticky element
+   * with a transparent background does not pin anything: the content it is meant
+   * to cover slides over it and both are visible at once.
+   */
+  it('pins the day headers and the hour gutter, and gives both a background', () => {
+    const source = sourceOf('WeekGrid.tsx')
+    // The headers stick to the top of the scroll box.
+    expect(source).toMatch(/sticky top-0/)
+    // The gutter sticks to its left, which is a separate edge and a separate
+    // failure: a chart that only pins one of the two still loses the other.
+    expect(source).toMatch(/sticky left-0/)
+    // Every sticky in this file carries the chart's own white, so nothing shows
+    // through the thing that is meant to be on top.
+    const stickies = [...source.matchAll(/className="([^"]*sticky[^"]*)"/g)].map((m) => m[1])
+    expect(stickies.length).toBeGreaterThan(0)
+    const transparent = stickies.filter((className) => !className.includes('bg-white'))
+    expect(transparent).toEqual([])
+  })
+
+  /**
+   * A week is wider than a phone, and the answer is to scroll rather than squeeze.
+   *
+   * Seven columns and an hour gutter on a 390-pixel screen means each column gets
+   * about forty pixels, which is too narrow for a name and too narrow for a thumb
+   * to land a quarter hour in. The product's answer is explicit — the grid may
+   * scroll horizontally so a column stays wide enough to show a name — so the track
+   * asks for a per-column floor and the week under it asks for a floor of its own.
+   * Both are floors rather than fixed widths, so a wide screen still gets the whole
+   * week spread out rather than seven narrow columns with a gap on the right.
+   */
+  it('gives every day column a width floor and lets the week scroll sideways', () => {
+    const source = sourceOf('WeekGrid.tsx')
+    // `minmax(4rem, 1fr)` per column: a floor and room to grow.
+    expect(source).toMatch(/grid-cols-\[[^\]]*minmax\(\d+(\.\d+)?rem,\s*1fr\)/)
+    // A floor on the week itself, so the columns cannot be squeezed under it.
+    expect(source).toMatch(/min-w-\[\d+rem\]/)
+  })
+
+  /**
+   * Nothing in this app is reachable only by hovering.
+   *
+   * The product says the page must not depend on a mouse, and the strongest honest
+   * version of that is not "hover styles are subtle" but "there are none". A hover
+   * rule in a component is a control that exists for some people and not others,
+   * and on a touch screen it is worse than that: the first tap fires the handler
+   * and *leaves the hover state stuck*, so the control stays visible after the
+   * finger is gone. A whole class of bug that cannot happen if the class name is
+   * not there.
+   *
+   * This check is over the components and not only over the chart, because the
+   * places a hover would plausibly be added next are the row actions in the list
+   * and the swatches in a form.
+   */
+  it('has no hover anywhere', () => {
+    const hovering = componentNames().filter((name) => /\bhover:/.test(sourceOf(name)))
+    expect(hovering).toEqual([])
+  })
+
+  /**
+   * Every control is at least a thumb tall.
+   *
+   * A 44-pixel target is the smallest thing a person can reliably hit with a
+   * finger, and this app is used with a finger on a phone. It is checked rather
+   * than assumed because a control's size is spread across three places — a class
+   * on the button, a class on a constant it shares, and a `min-h` nobody wrote —
+   * and the third is what gets forgotten when someone adds a button.
+   *
+   * Only *controls* are read, which took one attempt to get right. The first
+   * version swept every `h-` in every file and found the colour dot beside each
+   * row's name, which is `h-4` because it is a dot and not something to be hit.
+   * A check that flags a decoration is a check that gets deleted rather than
+   * fixed, so this one reads the class names off the elements a finger can
+   * actually press — and it follows the shared constants as well as the inline
+   * classes, since nine buttons in the list wear one `ACTION` string and a target
+   * that had quietly gone small would otherwise be found nine times over.
+   */
+  it('gives every control a thumb-sized target', () => {
+    const undersized = componentNames().flatMap((name) => {
+      const source = sourceOf(name)
+      // The class strings a file defines once and hands to several controls.
+      const constants = new Map(
+        [...source.matchAll(/const (\w+) = '([^']*)'/g)].map((match) => [match[1], match[2]]),
+      )
+      const problems: string[] = []
+      for (const control of controlsOf(source)) {
+        for (const className of classesOn(control, constants)) {
+          // A `min-h-11` is forty-four pixels. A height *below* eleven is a
+          // control that has been told, in the class itself, that it is smaller
+          // than a thumb. A control with no height at all is not a failure: it may
+          // be sized by its padding, and a shared constant's `min-h-11` is the
+          // usual answer.
+          for (const match of className.matchAll(/\b(?:min-)?h-(\d+(?:\.\d+)?)\b/g)) {
+            if (Number(match[1]) < 11) problems.push(`${name} has a ${Number(match[1]) * 4}px target`)
+          }
+        }
+      }
+      return problems
+    })
+    expect(undersized).toEqual([])
+  })
+
+  /**
+   * The list is on the page, not behind anything.
+   *
+   * The product's one firm rule about the phone is that the quotas have to be
+   * reachable without guessing where they went, and it allows exactly two shapes:
+   * the list beside the grid, or the list open from it. This app ships the first,
+   * so the thing worth pinning is that the list is rendered unconditionally — a
+   * disclosure, a tab, or a `hidden` that only opens at a wider breakpoint would
+   * all pass a test that only asked whether the list exists somewhere in the file.
+   *
+   * The `hidden` check reads *class tokens* rather than the bare word, which is
+   * also the second thing this file got wrong the first time: the plain word
+   * matches `aria-hidden`, which every decorative element in this app carries and
+   * which is the opposite of a control being hidden. A variant prefix counts too,
+   * so `sm:hidden` and `lg:hidden` are caught, which is the whole point — those
+   * are the classes that would put the list behind a wider screen.
+   */
+  it('puts the task list on the page with nothing in front of it', () => {
+    const source = sourceOf('TaskList.tsx')
+    // The list is a landmark with a name, so it can be jumped to and read out.
+    expect(source).toContain('aria-label="Tasks"')
+    // It is not hidden at any width, as a class token rather than a substring.
+    const hiding = [...source.matchAll(/className="([^"]*)"/g)]
+      .flatMap((match) => match[1].split(/\s+/))
+      .filter((className) => /(^|:)hidden$/.test(className))
+    expect(hiding).toEqual([])
+    // And it is not a disclosure: nothing in it collapses.
+    expect(source).not.toMatch(/<details|<summary/)
   })
 })
 

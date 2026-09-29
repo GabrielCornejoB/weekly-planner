@@ -31,6 +31,13 @@
  *   delete button at all, and neither has a placed block: the product makes a
  *   whole task or the whole board the thing that confirms, and the row that
  *   carries the delete button is the one the confirmation names.
+ * - **The list is on screen from the first open, with nothing in front of it.**
+ *   There is no menu, no disclosure, and no tab, because the product's one firm
+ *   rule about the phone is that the quotas have to be reachable without guessing
+ *   where they went. On a wide screen it scrolls on its own beside the chart, so a
+ *   long list does not stretch the page past the week; on a phone it is simply
+ *   under the chart with the page's own scroll, and bounding it there would hide
+ *   the tasks below the fold behind a second scroll nobody asked for.
  */
 
 import { PALETTE } from '@/colors/palette'
@@ -81,10 +88,22 @@ export function TaskList({
   onAddOneOff,
 }: TaskListProps) {
   return (
-    <section aria-label="Tasks" className="rounded-xl border border-stone-300 bg-white p-3">
-      <div className="flex items-center justify-between gap-2">
+    <section
+      aria-label="Tasks"
+      className="rounded-xl border border-stone-300 bg-white p-3 lg:max-h-[70dvh] lg:overflow-y-auto"
+    >
+      {/*
+       * The two buttons, and the heading they sit beside.
+       *
+       * They wrap rather than shrink, because a two-line "Add task" is a smaller
+       * target than a 44-pixel one and a person on a phone is aiming at a thumb
+       * rather than reading a layout. The heading keeps its own line when they do
+       * wrap, because the list's name is what a person looks for when they come
+       * back to it.
+       */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Tasks</h2>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button type="button" onClick={onAddOneOff} className={ADD}>
             Add event
           </button>

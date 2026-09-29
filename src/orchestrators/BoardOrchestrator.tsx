@@ -559,8 +559,11 @@ export function BoardOrchestrator() {
   const message = state.refusal ?? state.notice
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-6xl flex-col gap-3 p-3">
-      <h1 className="text-lg font-semibold text-stone-900">Weekly Planner</h1>
+    <main className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-3 p-3">
+      <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h1 className="text-lg font-semibold text-stone-900">Weekly Planner</h1>
+        <p className="text-xs text-stone-500">6:00 to 22:00. Drag snaps to 15 minutes.</p>
+      </header>
 
       {message !== null && (
         <RefusalBanner message={message} onDismiss={() => setState(dismissMessage(state))} />
@@ -579,42 +582,56 @@ export function BoardOrchestrator() {
         </p>
       )}
 
-      <WeekGrid
-        model={grid}
-        onEmptyTap={onEmptyTap}
-        onBlockTap={onBlockTap}
-        onBlockDrop={onBlockDrop}
-        onBlockResize={onBlockResize}
-        onDayHeaderTap={onDayHeaderTap}
-      />
+      {/*
+       * The chart and the list, side by side only when there is room for both.
+       *
+       * One column is the default and it is the phone: the chart takes a share of
+       * the screen and the list is directly under it, so both are on screen
+       * without a menu and without a scroll between them. On a wider screen the
+       * list moves beside the chart and scrolls on its own, because a week seven
+       * columns wide and a list of seven tasks are two things a person compares
+       * rather than two things they scroll between.
+       */}
+      <div className="grid min-w-0 grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="flex min-w-0 flex-col gap-3">
+          <WeekGrid
+            model={grid}
+            onEmptyTap={onEmptyTap}
+            onBlockTap={onBlockTap}
+            onBlockDrop={onBlockDrop}
+            onBlockResize={onBlockResize}
+            onDayHeaderTap={onDayHeaderTap}
+          />
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setDialog({ type: 'backup' })}
-          className={QUIET}
-        >
-          Backup
-        </button>
-        <button
-          type="button"
-          onClick={() => setDialog({ type: 'confirm', action: 'reset' })}
-          className={QUIET}
-        >
-          Reset board
-        </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setDialog({ type: 'backup' })}
+              className={QUIET}
+            >
+              Backup
+            </button>
+            <button
+              type="button"
+              onClick={() => setDialog({ type: 'confirm', action: 'reset' })}
+              className={QUIET}
+            >
+              Reset board
+            </button>
+          </div>
+        </div>
+
+        <TaskList
+          rows={rows}
+          selectedGoalId={selectedGoalId}
+          onSelectGoal={onSelectGoal}
+          onAddGoal={onAddGoal}
+          onEditGoal={onEditGoal}
+          onDeleteGoal={onDeleteGoal}
+          onEditOneOff={onEditOneOff}
+          onAddOneOff={onAddOneOff}
+        />
       </div>
-
-      <TaskList
-        rows={rows}
-        selectedGoalId={selectedGoalId}
-        onSelectGoal={onSelectGoal}
-        onAddGoal={onAddGoal}
-        onEditGoal={onEditGoal}
-        onDeleteGoal={onDeleteGoal}
-        onEditOneOff={onEditOneOff}
-        onAddOneOff={onAddOneOff}
-      />
 
       {openDialog()}
     </main>

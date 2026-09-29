@@ -43,22 +43,41 @@
  * - **The column is a fixed height and the day scrolls inside the chart.** The
  *   day headers stay put while the day moves under them, which is what the
  *   product asks for, and a column that grew with its contents would make a
- *   fifteen-minute block as tall as a four-hour one.
+ *   fifteen-minute block as tall as a four-hour one. The scroll box is bounded to
+ *   a share of the viewport, which is what makes that true on a phone: a box with
+ *   no height bound is never the thing that scrolls, so the *page* would scroll
+ *   and a sticky header inside it would go up with the page.
+ * - **The hour gutter sticks to the left while the week moves sideways.** Seven
+ *   columns are wider than a phone, so the chart scrolls horizontally and a
+ *   column stays wide enough to show a name. If the hours scrolled away with the
+ *   days, Friday would be a column of shapes with no way to say what time it is,
+ *   and the person would be placing blocks by eye. The gutter is painted over
+ *   the columns rather than under them, which is what the z-order here is for: the
+ *   hour labels are below the blocks in reading order and must not be below them
+ *   on screen.
  * - **Nothing is repaired.** A block outside 6:00–22:00 — which only a board that
  *   skipped every check can hold — keeps the percentage the model gave it and
  *   runs out of the column. A chart that tidied it would be showing a different
  *   truth from the one the numbers hold.
- * - **The block itself does not clip its own overflow.** The text inside does,
- *   through `truncate`, and the resize strips reach half a handle outside the top
- *   and bottom edges. Clipping the parent would cut them off, which is how a
- *   resize handle goes missing on a quarter-hour block and nobody can work out
- *   why.
+ * - **The block does not clip its own overflow; the box of text inside it does.**
+ *   The resize strips reach half a handle outside the top and bottom edges, so
+ *   clipping the parent would cut them off — which is how a resize handle goes
+ *   missing on a quarter-hour block and nobody can work out why. Clipping one
+ *   level in costs only the tail of a very short block's name, which is the truth
+ *   about it: a fifteen-minute block is fifteen minutes tall.
  * - **The drop is placed in the column the finger is over, asked from its x
  *   coordinate.** The drag captures the pointer on the body rather than on the
  *   block, so a drag that crosses into another column is still tracked and lands
  *   where it was released. Taking the day from whichever column the drag *began*
  *   in would move a block visibly sideways and put it back on the day it came
  *   from, which is the worst answer available: it looks like it worked.
+ * - **The gutter is asked about before any column, so a drop over the hours keeps
+ *   the day it came from.** This is a consequence of the gutter being sticky: a
+ *   pinned gutter means Monday's column slides *underneath* it, and a column's
+ *   measured width does not know whether it is on screen. Testing the columns
+ *   alone would hand Monday to a finger that is plainly over the hours, and the
+ *   block would jump to the far left of the week — the one place a person is
+ *   least likely to mean Monday.
  */
 
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
@@ -85,20 +104,57 @@ const TAP_SLOP_PIXELS = 6
 /** How tall a resize strip is, reaching half of that outside each edge. */
 const HANDLE_PIXELS = 16
 
-/** The one look for a plain text box, and the chart's seven columns. */
+/**
+ * How much of the screen the chart takes, and what the track inside it is.
+ *
+ * The height is a share of the viewport rather than a number of pixels, because
+ * the day is sixteen hours tall and a phone is not: the day has to scroll inside
+ * the chart, and only a box with a height bound is the thing that scrolls. Given
+ * no bound, the box grows to the day and the *page* scrolls instead, and a sticky
+ * header inside a box that never scrolls goes up with the page — which is exactly
+ * the header the product says must stay put. The `min-h` keeps a landscape phone,
+ * where a share of the screen is very little, from showing a strip of hours.
+ *
+ * The track is one complete class and the same width appears twice, in the track
+ * and in the floor under it. Tailwind only emits a class it can read whole in the
+ * source, so both are written out rather than built from a gutter width and a
+ * column count: a name assembled from parts survives in `npm run dev` and compiles
+ * to nothing in a production build, which would leave the week in one auto-width
+ * pile. It is the same trap `palette.ts` records for a color, and a test in this
+ * folder's own source reads for it.
+ */
+const CHART_BOX = 'h-[70dvh] min-h-[18rem] overflow-auto rounded-xl border border-stone-300 bg-white'
+const SEVEN_COLUMNS = 'grid grid-cols-[3rem_repeat(7,minmax(5.5rem,1fr))]'
+const WEEK_FLOOR = 'w-full min-w-[42rem]'
+
+/**
+ * The one look for a plain text box, and the chart's seven columns.
+ *
+ * The width is already in the track, so this is only the column's own minimum,
+ * which keeps a column from collapsing when the day is a very tall one.
+ */
 const COLUMN_CLASS = 'min-w-16'
 
 /**
- * The chart's track: the hour gutter and the seven day columns.
+ * What is painted over what, in one place.
  *
- * Written out whole, and not assembled from a gutter width and a column count,
- * because Tailwind only emits a class it can read whole in the source. A name
- * built out of parts survives in `npm run dev` and compiles to nothing in a
- * production build, which would leave the chart with no column track at all and
- * every block in one auto-width pile. It is the same trap `palette.ts` records
- * for a color, and it is pinned by a test in this folder's own source.
+ * The chart scrolls in two directions, so three things have to stay legible while
+ * it does: the day headers, the hour gutter, and the block under the finger. They
+ * are the three numbers here rather than six scattered ones, because a z-index
+ * written at a call site is a z-index nobody can reason about. The headers are on
+ * top of everything, the gutter is on top of the day columns it covers, and the
+ * drop guide is on top of the blocks it points at but under both — it is a line
+ * drawn under the finger, and a line that ran across the day names or across the
+ * hours would be a line saying something untrue.
+ *
+ * The handles tie with the guide and lose to it, which is harmless: the guide is
+ * `pointer-events-none`, so it can be painted over a handle without ever being
+ * able to take a tap from one.
  */
-const SEVEN_COLUMNS = 'grid grid-cols-[3rem_repeat(7,minmax(4rem,1fr))]'
+const Z_GUIDE = 10
+const Z_HANDLE = 10
+const Z_GUTTER = 20
+const Z_HEADERS = 30
 
 /**
  * A press that has not become anything else yet.
@@ -150,6 +206,7 @@ export function WeekGrid({
   onDayHeaderTap,
 }: WeekGridProps) {
   const bodyRef = useRef<HTMLDivElement | null>(null)
+  const gutterRef = useRef<HTMLDivElement | null>(null)
   const columns = useRef(new Map<DayId, HTMLDivElement | null>())
   const pending = useRef<Pending | null>(null)
   const [drag, setDrag] = useState<Drag | null>(null)
@@ -184,8 +241,18 @@ export function WeekGrid({
    * in this one function. A drag that reports the day it started on would move a
    * block sideways on screen and put it back on the same day, which is the worst
    * possible answer: it looks like it worked.
+   *
+   * The gutter is asked about first, and it is a real question rather than a
+   * formality. The gutter is pinned to the left of the scroll box, so the first
+   * day's column slides *underneath* it as the week moves sideways, and a column's
+   * box keeps reporting the width it really has whether or not it is on screen.
+   * Testing the columns alone would therefore hand Monday to a finger that is
+   * plainly over the hours, and a block dropped there would jump to the left edge
+   * of the week — the one place a person is least likely to mean Monday.
    */
   function dayAt(clientX: number): DayId | null {
+    const gutter = gutterRef.current?.getBoundingClientRect()
+    if (gutter !== undefined && clientX >= gutter.left && clientX < gutter.right) return null
     for (const [day, column] of columns.current) {
       if (column === null) continue
       const box = column.getBoundingClientRect()
@@ -307,12 +374,21 @@ export function WeekGrid({
   }
 
   return (
-    <div className="overflow-auto rounded-xl border border-stone-300 bg-white">
-      <div className="min-w-[34rem]">
+    <div className={CHART_BOX}>
+      <div className={WEEK_FLOOR}>
+        {/* The headers sit above the whole chart while the day scrolls under them. */}
         <div
-          className={`sticky top-0 z-20 border-b border-stone-300 bg-white ${SEVEN_COLUMNS}`}
+          className={`sticky top-0 border-b border-stone-300 bg-white ${SEVEN_COLUMNS}`}
+          style={{ zIndex: Z_HEADERS }}
         >
-          <div />
+          {/*
+           * The empty cell over the hour gutter.
+           *
+           * It carries the chart's own white because it sits over the gutter
+           * below it, and a day name sliding left under a transparent cell would
+           * show through it.
+           */}
+          <div className="bg-white" />
           {model.days.map((day) => (
             <button
               key={day.day}
@@ -332,20 +408,36 @@ export function WeekGrid({
           onPointerUp={settle}
           onPointerCancel={abandon}
         >
-          <div className="relative" style={{ height: DAY_COLUMN_PIXELS }}>
-            {model.lines
-              .filter((line) => line.label !== null)
-              .map((line) => (
-                <span
-                  key={line.minute}
-                  style={{ top: `${line.topPercent}%` }}
-                  className={`absolute right-1 text-[10px] tabular-nums text-stone-500 ${
-                    line.topPercent >= 100 ? '-translate-y-full' : '-translate-y-1/2'
-                  }`}
-                >
-                  {line.label}
-                </span>
-              ))}
+          {/*
+           * The hour gutter, pinned to the left of the scroll box.
+           *
+           * It scrolls with the day vertically, because the hours belong to the
+           * minute they name, and it stays put horizontally, because a week is
+           * wider than a phone and a column of shapes with no times on it is a
+           * picture rather than a chart. The white background is what makes it
+           * usable: the columns pass underneath it, so anything that scrolls in
+           * from the right would otherwise show through the numbers.
+           */}
+          <div
+            ref={gutterRef}
+            className="sticky left-0 bg-white"
+            style={{ height: DAY_COLUMN_PIXELS, zIndex: Z_GUTTER }}
+          >
+            <div className="relative h-full">
+              {model.lines
+                .filter((line) => line.label !== null)
+                .map((line) => (
+                  <span
+                    key={line.minute}
+                    style={{ top: `${line.topPercent}%` }}
+                    className={`absolute right-1 text-[10px] tabular-nums text-stone-500 ${
+                      line.topPercent >= 100 ? '-translate-y-full' : '-translate-y-1/2'
+                    }`}
+                  >
+                    {line.label}
+                  </span>
+                ))}
+            </div>
           </div>
 
           {model.days.map((day) => (
@@ -374,8 +466,8 @@ export function WeekGrid({
 
               {drag !== null && drag.moved && drag.day === day.day && (
                 <div
-                  style={{ top: `${dayPercent(reported(drag))}%` }}
-                  className="pointer-events-none absolute inset-x-0 z-30 h-0.5 rounded bg-stone-900/70"
+                  style={{ top: `${dayPercent(reported(drag))}%`, zIndex: Z_GUIDE }}
+                  className="pointer-events-none absolute inset-x-0 h-0.5 rounded bg-stone-900/70"
                 />
               )}
             </div>
@@ -420,32 +512,41 @@ function Block({ block, pressBlock, grabEdge }: BlockProps) {
   return (
     <div
       style={{ top: `${block.topPercent}%`, height: `${block.heightPercent}%` }}
-      className={`absolute inset-x-0 rounded px-1 py-0.5 ${classesFor(block)}`}
+      className={`absolute inset-x-0 rounded px-1 ${classesFor(block)}`}
     >
       <div
         onPointerDown={(event) => pressBlock(block, event)}
         className={`absolute inset-0 ${block.draggable ? 'touch-none' : ''}`}
       />
-      <p className="pointer-events-none truncate text-[10px] font-medium leading-tight">
-        {block.label}
-      </p>
-      {block.detail !== null && (
-        <p className="pointer-events-none truncate text-[9px] leading-tight opacity-80">
-          {block.detail}
-        </p>
-      )}
+      {/*
+       * The block's own text, clipped to the block.
+       *
+       * The clipping is here rather than on the block, because the block's
+       * resize strips reach half a handle outside its top and bottom edges and
+       * clipping the parent would cut them off. Here it costs only the last line
+       * of a quarter-hour block, which is the honest outcome: the block really
+       * is that short, and letting a name run out over the block underneath it
+       * would draw a word on minutes the block does not occupy.
+       */}
+      <div className="pointer-events-none overflow-hidden py-0.5">
+        <p className="truncate text-[10px] font-medium leading-tight">{block.label}</p>
+        {block.detail !== null && (
+          <p className="truncate text-[9px] leading-tight opacity-80">{block.detail}</p>
+        )}
+      </div>
       {canResize &&
         (['start', 'end'] as const).map((edge) => (
           <div
             key={edge}
             aria-hidden="true"
             onPointerDown={(event) => grabEdge(block, edge, event)}
-            style={
-              edge === 'start'
+            style={{
+              zIndex: Z_HANDLE,
+              ...(edge === 'start'
                 ? { height: HANDLE_PIXELS, top: -HANDLE_PIXELS / 2 }
-                : { height: HANDLE_PIXELS, bottom: -HANDLE_PIXELS / 2 }
-            }
-            className="absolute inset-x-0 z-10 cursor-ns-resize touch-none"
+                : { height: HANDLE_PIXELS, bottom: -HANDLE_PIXELS / 2 }),
+            }}
+            className="absolute inset-x-0 cursor-ns-resize touch-none"
           />
         ))}
     </div>
