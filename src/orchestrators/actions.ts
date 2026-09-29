@@ -470,10 +470,9 @@ export function editOneOff(
  *   never be the reason a later change is refused, while an addition placed
  *   before them would be refused against an interval the person is removing in
  *   the same breath.
- * - **Then the moves and resizes of what is staying**, each asked only about the
- *   field that actually changed, so an edit that moved nothing is not a move, and
- *   an edit that changed only the end is not a move with a length derived from
- *   somewhere else.
+ * - **Then the two edges of what is staying, each asked only about the field
+ *   that actually changed.** An edit that moved nothing is not a change of shape,
+ *   and an edit that changed only the end is not asked to move the start.
  * - **Then the additions**, so a block that is being moved is not refused against
  *   an interval the person has just drawn.
  *
@@ -497,6 +496,20 @@ export function editOneOff(
  * here decides whether any of it fits: every step is the domain's own door, and a
  * refused commute at the front of a sequence means none of the work changes are
  * attempted, which is the better of the two half-applied answers.
+ *
+ * **A draft states where an interval *is*, so both of its edges are set rather
+ * than one edge slid.** This is the second real bug the product walk found, and it
+ * is worth the space because the wrong version looked like a feature. This used to
+ * move a changed start and keep its length, and then resize the end if the end had
+ * also changed — which is right when both changed and wrong when only one did. The
+ * form holds a *Start* box and an *End* box: a person who types 7:30 into Start
+ * and presses Save is asking for 7:30–12:00, and the form is still showing 12:00
+ * in the End box at that moment. Sliding gave them 7:30–11:30 — a form that
+ * submits a week other than the one on screen, which is the one fault this whole
+ * split exists to prevent, arriving through the door the fix uses. Both edges are
+ * therefore resizes, each keeping the other where it is, and a *move* remains what
+ * the grid's drag does: `WeekGrid` `onBlockDrop` still reaches `moveWorkInterval`,
+ * which is the gesture that means "keep the length".
  */
 export function editDay(
   state: BoardState,
@@ -525,8 +538,10 @@ export function editDay(
     // form, since the ids came off the board. The lookup is a guard rather than
     // a rule, and a null here would mean a draft that is not this day's.
     if (before === undefined) continue
+    // Two edges, each keeping the other where it is — see the header for why this
+    // is two resizes and not a move with a conditional resize after it.
     if (before.startMinute !== interval.startMinute) {
-      steps.push((board) => moveWorkInterval(board, day, interval.id, interval.startMinute))
+      steps.push((board) => resizeWorkInterval(board, day, interval.id, 'start', interval.startMinute))
     }
     if (before.endMinute !== interval.endMinute) {
       steps.push((board) => resizeWorkInterval(board, day, interval.id, 'end', interval.endMinute))

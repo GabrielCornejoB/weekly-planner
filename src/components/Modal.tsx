@@ -39,7 +39,7 @@
 
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 
-export interface ModalProps {
+interface ModalProps {
   /** The one line that says which dialog this is. */
   title: string
   /** Whatever this dialog is for: a message and its buttons, or a whole form. */

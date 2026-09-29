@@ -60,7 +60,7 @@ export interface SessionDraft {
   travel: Session['travel']
 }
 
-export interface SessionEditorProps {
+interface SessionEditorProps {
   /** The block being edited, as the board holds it. */
   session: Session
   dayOptions: readonly DayOption[]

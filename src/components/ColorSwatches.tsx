@@ -28,7 +28,7 @@
 import { COLOR_IDS, PALETTE } from '@/colors/palette'
 import type { ColorId } from '@/domain/types'
 
-export interface ColorSwatchesProps {
+interface ColorSwatchesProps {
   label: string
   /** The color this item wears now. */
   value: ColorId

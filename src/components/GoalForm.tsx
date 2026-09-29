@@ -75,7 +75,7 @@ interface SharedFields {
   defaultTravel: TravelMinutes
 }
 
-export interface GoalFormProps {
+interface GoalFormProps {
   /** The task being edited, or `null` for a new one. Its kind is the kind lock. */
   goal: Goal | null
   /** The color a new task starts on, so it is not handed one already in use. */

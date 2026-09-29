@@ -786,11 +786,11 @@ describe('editDay', () => {
     })
   })
 
-  it('moves and resizes what is staying, and the length is the one that was typed', () => {
+  it('sets both edges of what is staying, and the length is the one that was typed', () => {
     // Friday carries the preset's work and nothing else, so the morning can start
-    // at 9:00 and finish at 10:30 without reaching anything. The move keeps the
-    // length it had and the resize puts the end where it was typed, so the two
-    // steps together are one interval of ninety minutes.
+    // at 9:00 and finish at 10:30 without reaching anything. Both edges are set
+    // from the draft, each keeping the other where it is, so the two steps
+    // together are one interval of ninety minutes.
     const board = week()
     const { runtime } = harness(board)
     const intervals = intervalsOf(board, 'friday')
@@ -808,6 +808,59 @@ describe('editDay', () => {
     expect(after.state.board.days.friday.workIntervals[0]).toMatchObject({
       startMinute: 540,
       endMinute: 630,
+    })
+  })
+
+  it('keeps the end a person did not touch, and does not slide the interval', () => {
+    // This is the bug the product walk found, and it is worth the whole test
+    // because the wrong version read like a feature. The form holds a *Start* box
+    // and an *End* box, and it is still showing 12:00 in the End box at the moment
+    // a person types 7:30 into Start and saves. Sliding the interval gave them
+    // 7:30–11:30: a form that submits a week other than the one on screen.
+    //
+    // A *move* is still what the chart's drag does — `WeekGrid` `onBlockDrop`
+    // reaches `moveWorkInterval`, which keeps the length. This form states where
+    // an interval is, so it sets both edges.
+    const board = week()
+    const { runtime } = harness(board)
+    const intervals = intervalsOf(board, 'monday')
+    const after = editDay(
+      holding(board),
+      runtime,
+      'monday',
+      dayDraft({
+        workIntervals: [{ ...intervals[0], startMinute: 450 }, intervals[1]],
+        commuteBeforeMinutes: 20,
+        commuteAfterMinutes: 15,
+      }),
+    )
+    expect(after.ok).toBe(true)
+    expect(after.state.board.days.monday.workIntervals[0]).toMatchObject({
+      startMinute: 450,
+      endMinute: 720,
+    })
+  })
+
+  it('keeps the start a person did not touch, when only the end changed', () => {
+    // The other direction, and the one that reads as a shortening rather than a
+    // move. The afternoon is asked to finish at 16:00, so it is 840–960.
+    const board = week()
+    const { runtime } = harness(board)
+    const intervals = intervalsOf(board, 'monday')
+    const after = editDay(
+      holding(board),
+      runtime,
+      'monday',
+      dayDraft({
+        workIntervals: [intervals[0], { ...intervals[1], endMinute: 960 }],
+        commuteBeforeMinutes: 20,
+        commuteAfterMinutes: 15,
+      }),
+    )
+    expect(after.ok).toBe(true)
+    expect(after.state.board.days.monday.workIntervals[1]).toMatchObject({
+      startMinute: 840,
+      endMinute: 960,
     })
   })
 

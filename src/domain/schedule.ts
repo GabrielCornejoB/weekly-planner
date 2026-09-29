@@ -53,8 +53,15 @@ export type PlacedTarget =
 /** Whatever holds a stretch of the day. */
 export type BlockTarget = PlacedTarget | { kind: 'work'; id: string }
 
-/** Which side of its owner a travel or commute stretch sits on. */
-export type TravelDirection = 'before' | 'after'
+/**
+ * Which side of its owner a travel or commute stretch sits on.
+ *
+ * Not exported, because a caller never names it: a stretch already carries its
+ * direction, and the two modules that build one are this one and `view.ts`, which
+ * reads it off the stretch rather than writing it. The name is here so the union
+ * below can say what it means once instead of twice.
+ */
+type TravelDirection = 'before' | 'after'
 
 /**
  * One stretch held by one thing. Half-open, so an end may equal a start.

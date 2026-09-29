@@ -42,6 +42,7 @@ src/
   main.tsx
   App.tsx                      mounts the orchestrator
   index.css                    @import "tailwindcss"
+  finish-line.test.ts          the build-wide checks: the tree, dead exports, no `any`
   domain/
     types.ts
     time.ts                    clock, duration, snap, geometry
@@ -62,6 +63,7 @@ src/
     BoardOrchestrator.tsx
     actions.ts                 every change, the one door, and the refusals it shows
     actions.test.ts
+    product-walk.test.ts       the product scope, driven through those flows
     orchestrator-rules.test.ts checks the rules this folder lives by, from source
   components/
     Modal.tsx
@@ -772,11 +774,41 @@ Done in `README.md` only. No source file changed, and `npm test` is still 612 te
 
 - **Task 21 has nothing from this task to clean up**: the README is not code, references no export, and no test was added. The two documents it links are the two this plan already names.
 
-### 21. Finish line
+### 21. Finish line [done]
 
 Run `npm test`, `npm run lint`, and `npm run build`. Remove unused starter files, unused exports, and any `any`. Confirm the runtime dependency list is only React and React DOM.
 
 Done when all three commands exit 0 and the behaviors in the product scope can be performed through the orchestrator events.
+
+Done in two new test files and four changed ones, plus one real bug fixed in `actions.ts`. `npm test` is 651 tests.
+
+**The three commands passed on the first run, and the cleanup found less than the task expected.** No starter file was left: `App.css`, `src/assets/`, and `public/` went in task 1, and the tree is now pinned by a test. There is no `any` in any of the three spellings the plan bans, and there never was one — task 2's lint rule had been doing that work for nineteen tasks. And the runtime dependency list is still exactly `react` and `react-dom`.
+
+**The unused exports were real, and they were all one mistake repeated.** Fifteen components exported their props interface and nothing imported any of them. An exported props type is a *second* version of a component's public shape: it can drift from the component and nothing would notice, because the only copy that is ever checked is the one written beside the component it belongs to. The private sub-components in the same files — `NameFieldProps`, `GoalRowProps`, `BlockProps` — were already unexported, so this brought the fifteen in line with the convention three lines below them in each file. Three more were internal vocabulary nothing named: `TravelDirection` in `schedule.ts`, and `GridTone` and `GoalListRow` in `view.ts`.
+
+**`GridLineView` stayed exported, and the rule for that is the plan itself.** It is the one export in the project that nothing imports — `GridModel.lines` carries it, and the grid reads a line's fields without naming its type. But the plan's own view-model listing writes `export interface GridLineView`, and a file that implements what the plan prints is matching the plan rather than adding to it. So rather than keep a hand-written allowlist that would drift, the check asks the *document*: an export survives if something names it **or** if the plan calls it a public name of that kind. `GridLineView` is therefore exempt because the plan says so, and a new unexported type would have to be added to the plan to earn the same exemption.
+
+**The half of the done-when that had never been asked is the half that found the bug.** Every one of the twenty tasks before this proved something about a *module*: the rules in `schedule.ts`, the sentences in `progress.ts`, the flows in `actions.ts` one at a time. Nothing had asked whether a person could get from an empty week to a planned one using only what the app hands them — which is what the done-when actually says. So `product-walk.test.ts` is that walk: thirty-one tests, one per thing the product scope says a person must be able to do, driven **only** through the flows in `actions.ts` and read back through `toGridModel`, `toTaskListModel`, and the sentence the orchestrator put in the state. Not one mutation is called directly in that file, and a test that called `placeSession` would have proved the domain again while saying nothing about whether the app can be used.
+
+**The bug it found is in the day editor, and the wrong version read like a feature.** `editDay` used to *move* a work interval whose start had changed and then resize its end only if the end had changed too. That is right when both changed and wrong when only one did — and the form holds a *Start* box and an *End* box. A person who types 7:30 into Start and presses Save is asking for 7:30–12:00, and the form is **still showing 12:00 in the End box at that moment**. Sliding gave them 7:30–11:30: a form that submits a week other than the one on screen, which is the one fault this whole split exists to prevent, arriving through the very door the fix uses. Both edges are now resizes, each keeping the other where it is. A *move* is still what the chart's drag does — `WeekGrid` `onBlockDrop` still reaches `moveWorkInterval`, which keeps the length — and that asymmetry is now written down in the flow's header, because "move" and "state where it is" are different gestures and the grid is the one that means move.
+
+**The second completeness check is the one nothing in the project could previously see.** `component-rules.test.ts` pins what each component *offers* its caller. Nothing pinned what the orchestrator *hands it*. An event declared and never passed is a control that silently does nothing — a chart reporting an empty tap to nobody — and it is the literal meaning of "can be performed through the orchestrator events". Every `onX` a component declares must now be an attribute on a tag of that component's name somewhere in the project. It is a *somewhere* check rather than a *caller* check, and the limit is stated in the test: `Modal` is the case that shows why, since six components render it and which of them forgot is a different question from whether one of them forgot.
+
+**The third is that the walk is a walk and not a sample.** Every exported flow in `actions.ts` must be named by a test, read from the file's own source. A flow added to the app and walked by nobody is a behaviour a person can reach that no test in the project has ever checked, which is the gap the whole file was written to close. The check counts `actions.test.ts` as a walker too, so the claim it makes is the stronger one: *every flow is exercised*.
+
+**Four new project-wide checks, all in `src/finish-line.test.ts`.** The file tree is the plan's architecture section asked of the disk, with the folders attached, so a file moved into the wrong one fails rather than merely still existing — and the plan is asked the same question back, so a file added to the code and forgotten in the document is caught from the other side. There is no `any` in code, read with comments and string literals stripped, because a check about code must not be able to pass on a comment that *describes* the code. The manifest is read as text and narrowed by a guard, and its `dependencies` must be exactly the two. And the dead-export sweep, which is the one worth the space.
+
+**The sweep's reader took three attempts, and the third is what shipped.** The first version matched `export function|const|interface|type` and found the fifteen props types and the three internals — and would have reported every one of the hundred-odd legitimate exports as fine the moment it met a name that appeared in a comment. So both sides are read with comments stripped, which is the same guard the orchestrator's rules file uses for the same reason. The second failure was quieter: the file-tree list had bare names and the glob has folders, so fifty files compared unequal and the report named a difference rather than a cause. The third was that the plan's own tree writes `BackupPanel.tsx` while its task entries name `TimeInput` in prose, so "is this in the plan" is asked of the file's stem and the tree equality is the check that actually bites.
+
+**Eight wrong implementations were probed against the real files and all eight are caught**: a props interface re-exported, a brand-new dead export, an `any` in a module, a stray file dropped into `src/`, a third runtime dependency in the manifest, the chart's `onEmptyTap` no longer passed, a new flow nothing walks, and the day-editor bug put back — that one failing two tests in two files, which is the shape a real bug should have.
+
+**Two probes were bad rather than the checks being weak, and one of them is worth recording.** Stripping `onClose` from `ConfirmDialog`'s `<Modal` did not fail the wiring check, because five other components render a `Modal` and hand it the same event. That is the check being right and the probe being lazy: an event nobody passes *at all* is the failure it is for. The decisive probe was adding one callback to `RefusalBanner`'s props and passing it nowhere, and that failed as it should. The same happened with the `editDay` revert, which first failed only one test until the walk's own "start earlier than 8:00" case was pointed at a day with no afternoon — the fixture, not the check.
+
+**Verified:** `npm test` exits 0 (18 files, 651 tests passed — 612 through task 20, 39 new); `npm run lint` exits 0 (0 warnings, 0 errors over 51 files); `npm run build` exits 0 (`tsc -b`, then a minified `dist/`); `npm run dev` serves a 200. `docs/product-scope.md` untouched. No new dependency: runtime deps are still only `react` and `react-dom`.
+
+A throwaway `react-dom/server` probe (written, run, and deleted in this session; never committed) confirmed the whole page still renders after both changes: the seven day names, the hour ruler, the chart's `h-[70dvh]` box and its one complete `grid-cols-[3rem_repeat(7,minmax(5.5rem,1fr))]` class, the preset work at `top:12.5%;height:25%`, the list landmark, the `Backup` and `Reset board` buttons, and the empty-list hint.
+
+**Still not verified: the interactive behaviour on a real screen.** The browser tooling was offered to this session and reported no desktop browser connected, and repeating the call does not help, so the four things tasks 16 through 19 could not verify are still unverified: a drag across columns, a resize handle under a finger, a tap on free time, and every dialog opening and closing. A throwaway render probe cannot answer any of them, because it renders once and throws the handlers away. **What this task did instead is close the machine-checkable half of that gap**: every event a component declares is now proved to reach a flow, and every flow is proved to be exercised — so what is left is a finger and a screen, and nothing in the code.
 
 ## Known limits
 

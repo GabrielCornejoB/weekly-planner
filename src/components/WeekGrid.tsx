@@ -183,7 +183,7 @@ interface Drag {
   moved: boolean
 }
 
-export interface WeekGridProps {
+interface WeekGridProps {
   model: GridModel
   /** A finger landed on free time, at a quarter hour. */
   onEmptyTap: (day: DayId, minute: number) => void

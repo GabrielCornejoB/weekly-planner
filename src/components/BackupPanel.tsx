@@ -42,7 +42,7 @@ const AREA =
 const BUTTON = 'min-h-11 rounded-lg border border-stone-300 px-3 text-sm text-stone-700'
 const PRIMARY = 'min-h-11 rounded-lg bg-stone-900 px-4 text-sm font-medium text-white'
 
-export interface BackupPanelProps {
+interface BackupPanelProps {
   /** The whole board as the export function already wrote it. */
   text: string
   /** The copy was put on the clipboard. Nothing more is said about it. */

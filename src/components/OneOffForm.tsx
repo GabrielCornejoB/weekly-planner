@@ -59,7 +59,7 @@ export interface OneOffEdit extends OneOffDraft {
   activityEndMinute: number
 }
 
-export interface OneOffFormProps {
+interface OneOffFormProps {
   /** The event being edited, or `null` when the person has just tapped a slot. */
   oneOff: OneOff | null
   /** Where a new event goes: the day and minute the chart was tapped. */

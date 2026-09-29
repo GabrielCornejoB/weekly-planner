@@ -47,7 +47,7 @@ const MINUTES_IN_HOUR = 60
 const BOX =
   'w-full min-h-11 rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-900'
 
-export interface DurationInputProps {
+interface DurationInputProps {
   label: string
   /** The length in minutes, as the board currently holds it. */
   minutes: number

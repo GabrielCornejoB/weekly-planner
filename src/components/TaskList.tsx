@@ -63,7 +63,7 @@ const STATUS: Record<ProgressStatus, { word: string; className: string }> = {
   over: { word: 'Over the goal', className: 'border border-dotted border-stone-500 text-stone-700' },
 }
 
-export interface TaskListProps {
+interface TaskListProps {
   /** Goals first, then one-offs, in the order the board holds them. */
   rows: readonly TaskListRow[]
   /** The task armed for placing, or `null`. Selection is not board state. */

@@ -19,7 +19,7 @@
  *   refusal nobody could act on.
  */
 
-export interface RefusalBannerProps {
+interface RefusalBannerProps {
   /** The whole sentence, already worded. This component builds nothing. */
   message: string
   onDismiss: () => void

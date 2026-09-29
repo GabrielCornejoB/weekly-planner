@@ -44,7 +44,7 @@ export interface BlockPlacement {
   travel: TravelMinutes
 }
 
-export interface BlockFieldsProps {
+interface BlockFieldsProps {
   placement: BlockPlacement
   /** The seven days, handed down because this component may not name them itself. */
   dayOptions: readonly DayOption[]

@@ -146,8 +146,17 @@ export type { OneOffDraft } from '@/domain/sessions'
  */
 export type { ProgressStatus } from '@/domain/progress'
 
-/** How a strip is colored. Work and commute are stone; the rest wear a hue. */
-export type GridTone = 'work' | 'commute' | 'activity' | 'travel'
+/**
+ * How a strip is colored. Work and commute are stone; the rest wear a hue.
+ *
+ * Not exported: the grid never names a tone, it reads one off a block and looks it
+ * up, so the closed set is a fact about the model rather than something the
+ * component is asked to spell. That is the same reason `GridLineView` and
+ * `GridDayView` beside it are: a type the plan's own listing declares stays
+ * exported even where nothing imports it yet, and a type the plan does not name is
+ * not the vocabulary at the edge.
+ */
+type GridTone = 'work' | 'commute' | 'activity' | 'travel'
 
 /**
  * One rectangle on the week chart, with everything needed to draw it and
@@ -209,8 +218,15 @@ export interface DayOption {
   label: string
 }
 
-/** A task in the list, with its progress. */
-export interface GoalListRow {
+/**
+ * A task in the list, with its progress.
+ *
+ * Not exported for the same reason as `GridTone`: `TaskListRow` is the union a
+ * component is handed, and the list narrows it on `kind` rather than importing
+ * either half. `OneOffListRow` is exported because a test names it to say which
+ * case of the union a row is, and a test is a reader like any other.
+ */
+interface GoalListRow {
   kind: 'goal'
   id: string
   name: string

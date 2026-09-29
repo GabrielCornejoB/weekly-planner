@@ -34,7 +34,7 @@ export interface DayOption {
   label: string
 }
 
-export interface DaySelectProps {
+interface DaySelectProps {
   label: string
   /** The days to offer, in the order they should appear. */
   options: readonly DayOption[]

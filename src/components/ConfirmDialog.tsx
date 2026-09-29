@@ -23,7 +23,7 @@
 
 import { Modal } from './Modal'
 
-export interface ConfirmDialogProps {
+interface ConfirmDialogProps {
   /** `Reset the board`, `Delete Study`, `Replace the board`. */
   title: string
   /** One sentence saying what happens, and what is lost. */

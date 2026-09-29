@@ -64,7 +64,7 @@ export interface DayDraft {
 const REMOVE =
   'min-h-11 rounded-lg border border-stone-300 px-3 text-sm text-stone-700'
 
-export interface DayEditorProps {
+interface DayEditorProps {
   /** The day as its column header spells it. */
   dayLabel: string
   plan: DayPlan
